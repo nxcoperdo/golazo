@@ -27,6 +27,20 @@ services:
       JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET en .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       PORT: "3000"
+      STORAGE_DIR: /app/storage
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-Golazo <no-reply@golazo.local>}
+      APP_RESET_URL: ${APP_RESET_URL:-golazo://reset-password}
+      SUBSCRIPTION_PRICE: ${SUBSCRIPTION_PRICE:-100000}
+      UNPAID_MINUTES: ${UNPAID_MINUTES:-30}
+      PLATFORM_PAYMENT_ACCOUNTS: ${PLATFORM_PAYMENT_ACCOUNTS:-}
+      REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-0}
+      APP_VERIFY_URL: ${APP_VERIFY_URL:-golazo://verify-email}
+      # Push FCM (opcional): monta la cuenta de servicio y apunta a ella.
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+    volumes:
+      # Fotos de canchas y comprobantes. Incluir en los respaldos del VPS.
+      - uploads:/app/storage
     ports:
       # Solo local: el acceso público pasa por Nginx.
       - "127.0.0.1:3000:3000"
@@ -44,3 +58,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

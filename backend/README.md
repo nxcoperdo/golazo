@@ -1,53 +1,99 @@
 # Golazo — Backend
 
-NestJS 12 + PostgreSQL 16/PostGIS. Diseño completo en [`../docs/backend-design.md`](../docs/backend-design.md).
+NestJS 12 + PostgreSQL 16/PostGIS. Diseño y decisiones en [`../docs/backend-design.md`](../docs/backend-design.md).
 
 ## Estado
 
-| Hecho | Pendiente |
-|---|---|
-| Esquema SQL completo (`migrations/001_init.sql`) | Canchas y disponibilidad |
-| Auth: registro, login, Google, refresh rotativo, logout, `/auth/me` | Reservas (usa `bookings/booking-policy.ts`) |
-| Guard con roles y suspensión inmediata | Pagos y comprobantes |
-| Límite de tasa, validación estricta, `/v1/health` | Mensualidades, reseñas, notificaciones, panel admin |
-| Política de reservas (24 h / 8 h / 30 %) con tests | Subida de archivos |
+El backend cubre todo el alcance del diseño. Probado contra Postgres real con dos scripts de integración
+(`scripts/integration-test.ps1` y `scripts/integration-test-2.ps1`) y tests unitarios (`npm test`).
+
+**Sin probar con servicios externos reales** (el código existe y rechaza entradas inválidas, pero necesita credenciales):
+login con un token real de Google, envío SMTP, push FCM. **No implementado:** APNs directo para iOS
+(los tokens iOS se registran, pero hoy solo se envía por FCM).
 
 ## Desarrollo
 
 ```bash
-cp .env.example .env          # y rellena JWT_SECRET y POSTGRES_PASSWORD
+cp .env.example .env          # rellena JWT_SECRET y POSTGRES_PASSWORD
 npm install
 npm run build
 npm test                      # tests unitarios (no necesitan base de datos)
 ```
 
-Con una base PostgreSQL+PostGIS disponible:
+Con la base arriba (`docker compose up -d db`):
 
 ```bash
-export DATABASE_URL=postgres://golazo:...@localhost:5432/golazo
-npm run migrate               # aplica /migrations en orden
-npm run start:dev
-```
-
-## Despliegue en el VPS
-
-```bash
-docker compose up -d db
-docker compose run --rm migrate      # aplica migraciones
+docker compose run --rm migrate                 # aplica /migrations (reconstruye con: docker compose build migrate)
 docker compose up -d --build api
 curl http://127.0.0.1:3000/v1/health
 ```
 
-Nginx debe terminar TLS y reenviar a `127.0.0.1:3000` con `X-Forwarded-For`.
+> Si agregas una migración nueva, reconstruye la imagen (`docker compose build migrate`) antes de correr `migrate`,
+> o no verá el archivo.
 
-## Endpoints disponibles (prefijo `/v1`)
+### Crear el primer administrador
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/health` | Estado de la API y la base |
-| POST | `/auth/register` | `{name, email, password, phone}` |
-| POST | `/auth/login` | `{email, password}` |
-| POST | `/auth/google` | `{idToken, phone?}` |
-| POST | `/auth/refresh` | `{refreshToken}` (rota el token) |
-| POST | `/auth/logout` | `{refreshToken}` |
-| GET | `/auth/me` | Usuario actual (Bearer) |
+Los administradores no se pueden crear por la API:
+
+```bash
+docker compose run --rm migrate node dist/scripts/create-admin.js correo@dominio.com "Nombre Apellido" "contraseña-de-10+-caracteres"
+```
+
+### Pruebas de integración (PowerShell, Windows)
+
+```powershell
+./scripts/integration-test.ps1      # canchas, disponibilidad y reservas
+./scripts/integration-test-2.ps1    # pagos, mensualidades, admin, reseñas, tareas y cuenta
+```
+
+Esperan ~1 minuto entre corridas por el límite de intentos de `/auth`. Borran sus propios datos (`@itest.co`).
+
+## Despliegue en el VPS
+
+1. `cp .env.example .env` y cambia **todos** los secretos (distintos a los de desarrollo).
+2. `docker compose up -d db && docker compose run --rm migrate && docker compose up -d --build api`.
+3. Nginx termina TLS y reenvía a `127.0.0.1:3000` con `X-Forwarded-For`.
+4. **Respaldos:** `pg_dump` diario **y** el volumen `uploads` (fotos y comprobantes), copiados fuera del VPS.
+5. Opcionales en `.env`: `SMTP_URL`/`MAIL_FROM` (correos), `FCM_SERVICE_ACCOUNT_FILE` (push), `GOOGLE_CLIENT_ID`.
+
+## Tareas programadas (cada minuto, con candado en la base)
+
+- Cancela reservas sin comprobante tras `UNPAID_MINUTES` (30) y libera la hora.
+- Suspende canchas con mensualidad vencida y avisa 3 días antes del vencimiento.
+- Limpia tokens de sesión y de recuperación vencidos.
+- El admin puede forzarlas: `POST /v1/admin/jobs/run`.
+
+> Una cancha activa **sin** periodo de mensualidad vigente se suspende sola en el siguiente minuto.
+
+## API (prefijo `/v1`)
+
+Errores: `{ "code": "...", "message": "..." }` (validación: `{ message: [...] }`).
+
+**Público**
+`GET /health` · `GET /courts?city&maxPrice&covered&lat&lng&radiusKm&limit&offset` · `GET /courts/:id` ·
+`GET /courts/:id/availability?date=YYYY-MM-DD` · `GET /courts/:id/reviews` · `GET /files/courts/:archivo`
+
+**Cuenta** — `POST /auth/register` (`asOwner` opcional) · `/auth/login` · `/auth/google` · `/auth/refresh` · `/auth/logout` ·
+`GET|PATCH|DELETE /auth/me` · `POST /auth/change-password` · `/auth/forgot-password` · `/auth/reset-password`
+
+**Jugador** — `POST /bookings` · `GET /bookings/mine` · `GET /bookings/:id` · `POST /bookings/:id/cancel` ·
+`POST /bookings/:id/payment` (multipart `proof`) · `POST /bookings/:id/review` · `POST /reviews/:id/report` ·
+`GET /payments/:id/proof` · `GET /notifications` · `POST /notifications/:id/read` · `/notifications/read-all` · `POST|DELETE /devices`
+
+**Dueño** (`role=owner`) — `GET|POST /owner/courts` · `GET|PATCH /owner/courts/:id` · `PUT /owner/courts/:id/payment-methods` ·
+`POST /owner/courts/:id/photos` (multipart `photo`) · `DELETE /owner/courts/:id/photos/:photoId` ·
+`POST /owner/courts/:id/subscription-payment` (multipart `proof`) · `GET /owner/payments?status` ·
+`POST /owner/payments/:id/approve|reject` · `GET /owner/stats?from&to&courtId`
+
+**Admin** (`role=admin`) — `GET /admin/users` · `POST /admin/users/:id/suspend|restore` · `DELETE /admin/users/:id` ·
+`GET /admin/courts` · `POST /admin/courts/:id/suspend|reactivate` · `GET /admin/payments?kind&status` ·
+`POST /admin/payments/:id/approve|reject` · `GET /admin/review-reports` · `POST /admin/reviews/:id/hide|dismiss` ·
+`GET /admin/transactions` · `GET /admin/metrics` · `POST /admin/jobs/run`
+
+## Decisiones de seguridad a tener presentes
+
+- Montos, anticipos y reglas de horario se calculan en el servidor; el cliente nunca los define.
+- Imágenes: se validan por contenido (jpg/png/webp), ≤ 5 MB, se re-codifican y pierden EXIF/GPS. Los comprobantes solo los ven
+  quien los subió, el dueño de esa cancha y los admins.
+- Un administrador no se puede suspender ni borrar desde la API; el rol `admin` nunca se asigna por la API.
+- Una cancha suspendida por el admin no se reactiva sola al pagar la mensualidad.

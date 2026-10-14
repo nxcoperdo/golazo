@@ -216,7 +216,7 @@ Errores con formato uniforme `{code, message}`. Respuestas paginadas con cursor 
 
 - Contraseñas con argon2id. JWT de acceso corto (15 min) + refresh token rotativo guardado como hash.
 - Guards por rol y por propiedad: un dueño solo toca sus canchas y los pagos de ellas.
-- Comprobantes: solo visibles para el jugador que los subió, el dueño de esa cancha y los administradores, mediante URL firmada de corta duración. Validar tipo real (JPEG/PNG/WebP/PDF) y tamaño (≤ 5 MB), re-codificar imágenes y quitar metadatos EXIF.
+- Comprobantes: solo visibles para el jugador que los subió, el dueño de esa cancha y los administradores, mediante una descarga autenticada (`GET /payments/:id/proof`, sin caché) en vez de URLs firmadas: más simple y se revoca al instante. Validar tipo real (JPEG/PNG/WebP/PDF) y tamaño (≤ 5 MB), re-codificar imágenes y quitar metadatos EXIF.
 - Límites de tasa en login y subida de archivos. Validación de DTO en todas las entradas.
 - Eliminar usuario = anonimizar (`deleted_at`, borrar correo/celular/nombre) para conservar el historial de transacciones.
 - Datos personales: la Ley 1581 de 2012 (Colombia) exige política de tratamiento de datos y autorización del titular; incluirlo antes de publicar.

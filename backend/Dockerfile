@@ -9,7 +9,8 @@ FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 # Usuario sin privilegios
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S app && adduser -S app -G app \
+ && mkdir -p /app/storage && chown app:app /app/storage
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/dist ./dist
 COPY --from=build --chown=app:app /app/migrations ./migrations

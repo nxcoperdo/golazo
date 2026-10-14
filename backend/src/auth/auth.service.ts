@@ -23,12 +23,13 @@ export interface UserRow {
   password_hash: string | null;
   suspended_at: Date | null;
   deleted_at: Date | null;
+  email_verified_at: Date | null;
 }
 
 export interface AuthResult {
   accessToken: string;
   refreshToken: string;
-  user: { id: string; name: string; email: string | null; phone: string | null; role: Role };
+  user: { id: string; name: string; email: string | null; phone: string | null; role: Role; emailVerified: boolean };
 }
 
 const REFRESH_TTL_DAYS = 30;
@@ -49,14 +50,20 @@ export class AuthService {
     this.google = new OAuth2Client(this.googleClientId);
   }
 
-  async register(input: { name: string; email: string; password: string; phone: string }): Promise<AuthResult> {
+  async register(input: {
+    name: string;
+    email: string;
+    password: string;
+    phone: string;
+    asOwner?: boolean;
+  }): Promise<AuthResult> {
     const email = input.email.trim().toLowerCase();
     const hash = await argon2.hash(input.password);
     try {
       const { rows } = await this.db.query<UserRow>(
-        `INSERT INTO users (name, email, phone, password_hash)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [input.name.trim(), email, input.phone, hash],
+        `INSERT INTO users (name, email, phone, password_hash, role)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [input.name.trim(), email, input.phone, hash, input.asOwner ? 'owner' : 'player'],
       );
       return this.issue(rows[0]!);
     } catch (e) {
@@ -106,14 +113,15 @@ export class AuthService {
       if (existing) {
         // Vincula la cuenta de Google a un registro previo por correo.
         const upd = await c.query<UserRow>(
-          `UPDATE users SET google_sub = COALESCE(google_sub, $1), phone = COALESCE(phone, $2)
+          `UPDATE users SET google_sub = COALESCE(google_sub, $1), phone = COALESCE(phone, $2),
+                            email_verified_at = COALESCE(email_verified_at, now())
            WHERE id = $3 RETURNING *`,
           [payload.sub, phone ?? null, existing.id],
         );
         return upd.rows[0]!;
       }
       const ins = await c.query<UserRow>(
-        `INSERT INTO users (name, email, phone, google_sub) VALUES ($1, $2, $3, $4) RETURNING *`,
+        `INSERT INTO users (name, email, phone, google_sub, email_verified_at) VALUES ($1, $2, $3, $4, now()) RETURNING *`,
         [payload.name ?? email, email, phone ?? null, payload.sub],
       );
       return ins.rows[0]!;
@@ -159,6 +167,12 @@ export class AuthService {
     ]);
   }
 
+  /** Emite una sesión nueva para un usuario existente (p. ej. tras cambiar la contraseña). */
+  async issueForUser(userId: string): Promise<AuthResult> {
+    const { rows } = await this.db.query<UserRow>('SELECT * FROM users WHERE id = $1', [userId]);
+    return this.issue(rows[0]!);
+  }
+
   private assertActive(user: UserRow): void {
     if (user.deleted_at) {
       throw new UnauthorizedException({ code: 'BAD_CREDENTIALS', message: 'Correo o contraseña incorrectos' });
@@ -179,7 +193,14 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        emailVerified: user.email_verified_at != null,
+      },
     };
   }
 }

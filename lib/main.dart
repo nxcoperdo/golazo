@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/push.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'data/providers.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initPush();
   runApp(const ProviderScope(child: GolazoApp()));
 }
 
@@ -22,11 +25,16 @@ class GolazoApp extends ConsumerStatefulWidget {
 
 class _GolazoAppState extends ConsumerState<GolazoApp> {
   StreamSubscription<Uri>? _links;
+  ProviderSubscription<String?>? _pushSession;
 
   @override
   void initState() {
     super.initState();
     _listenLinks();
+    // Con sesión iniciada se registra el dispositivo para recibir push.
+    _pushSession = ref.listenManual<String?>(userIdProvider, (_, id) {
+      if (id != null) ref.read(pushProvider).start();
+    }, fireImmediately: true);
   }
 
   /// Enlaces de los correos: golazo://reset-password?token=… y golazo://verify-email?token=…
@@ -57,12 +65,14 @@ class _GolazoAppState extends ConsumerState<GolazoApp> {
   @override
   void dispose() {
     _links?.cancel();
+    _pushSession?.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => MaterialApp.router(
         title: 'Golazo',
+        scaffoldMessengerKey: rootMessengerKey,
         theme: buildTheme(),
         routerConfig: ref.watch(routerProvider),
         locale: const Locale('es', 'CO'),

@@ -1,9 +1,34 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../data/models.dart' show courtTypeLabel, courtTypes;
 import '../../data/providers.dart';
+
+/// Las listas con `padding` propio no reciben el espacio de la barra inferior flotante
+/// (la barra tapa el final del contenido): este método suma ese espacio abajo.
+extension NavInset on EdgeInsets {
+  EdgeInsets withNav(BuildContext context) => copyWith(bottom: bottom + MediaQuery.paddingOf(context).bottom);
+}
+
+/// Elegir el tipo de cancha (Fútbol 5, 6, 7, 8 u 11).
+class CourtTypePicker extends StatelessWidget {
+  const CourtTypePicker({super.key, required this.value, required this.onChanged});
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Tipo de cancha', style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final t in courtTypes)
+            ChoiceChip(label: Text(courtTypeLabel(t)), selected: value == t, onSelected: (_) => onChanged(t)),
+        ]),
+      ]);
+}
 
 void showSnack(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
@@ -30,6 +55,9 @@ class PickedImage {
   final Uint8List bytes;
   final String filename;
 }
+
+/// Cómo se pide la foto de un comprobante. Es un provider para reemplazarlo en las pruebas.
+final pickImageProvider = Provider<Future<PickedImage?> Function(BuildContext)>((_) => pickImage);
 
 /// Pide al usuario una foto (cámara o galería). Reduce el tamaño para que
 /// quepa en el límite de 5 MB del servidor.
@@ -111,24 +139,4 @@ Future<String?> askText(
   );
   ctrl.dispose();
   return r;
-}
-
-/// Chip de estado con color según el tipo.
-class StatusChip extends StatelessWidget {
-  const StatusChip(this.label, {super.key, this.color});
-  final String label;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = color ?? Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label, style: TextStyle(color: c, fontWeight: FontWeight.w600, fontSize: 12)),
-    );
-  }
 }

@@ -7,7 +7,7 @@ import type { CreateCourtDto, ListCourtsQuery, PaymentMethodDto, UpdateCourtDto 
 
 /** Columnas públicas de una cancha, con foto principal, calificación y (opcional) distancia. */
 const COURT_SELECT = (distanceSql: string) => `
-  c.id, c.name, c.description, c.city, c.address, c.covered,
+  c.id, c.name, c.description, c.city, c.address, c.covered, c.court_type AS "courtType",
   c.price_per_hour AS "pricePerHour", c.open_hour AS "openHour", c.close_hour AS "closeHour",
   c.requires_deposit AS "requiresDeposit", c.deposit_percent AS "depositPercent",
   c.status, ST_Y(c.location::geometry) AS lat, ST_X(c.location::geometry) AS lng,
@@ -39,6 +39,7 @@ export class CourtsService {
     if (q.city) where.push(`c.city = ${p(q.city)}`);
     if (q.maxPrice != null) where.push(`c.price_per_hour <= ${p(q.maxPrice)}`);
     if (q.covered != null) where.push(`c.covered = ${p(q.covered)}`);
+    if (q.courtType != null) where.push(`c.court_type = ${p(q.courtType)}`);
 
     let distance = 'NULL::float8';
     let order = 'c.name';
@@ -111,12 +112,12 @@ export class CourtsService {
       throw new BadRequestException({ code: 'BAD_HOURS', message: 'El cierre debe ser después de la apertura' });
     }
     const { rows } = await this.db.query<{ id: string }>(
-      `INSERT INTO courts (owner_id, name, description, city, address, location, covered,
+      `INSERT INTO courts (owner_id, name, description, city, address, location, covered, court_type,
                            price_per_hour, open_hour, close_hour, requires_deposit, deposit_percent)
        VALUES ($1,$2,$3,$4,$5, ST_SetSRID(ST_MakePoint($6::float8,$7::float8),4326)::geography,
-               $8,$9,$10,$11,$12,$13) RETURNING id`,
+               $8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [ownerId, dto.name.trim(), dto.description ?? null, dto.city.trim(), dto.address.trim(), dto.lng, dto.lat,
-       dto.covered, dto.pricePerHour, dto.openHour, dto.closeHour, dto.requiresDeposit, dto.depositPercent ?? 30],
+       dto.covered, dto.courtType ?? 5, dto.pricePerHour, dto.openHour, dto.closeHour, dto.requiresDeposit, dto.depositPercent ?? 30],
     );
     return this.ownerDetail(ownerId, rows[0]!.id);
   }
@@ -183,6 +184,7 @@ export class CourtsService {
     if (dto.city !== undefined) set('city', dto.city.trim());
     if (dto.address !== undefined) set('address', dto.address.trim());
     if (dto.covered !== undefined) set('covered', dto.covered);
+    if (dto.courtType !== undefined) set('court_type', dto.courtType);
     if (dto.pricePerHour !== undefined) set('price_per_hour', dto.pricePerHour);
     if (dto.openHour !== undefined) set('open_hour', dto.openHour);
     if (dto.closeHour !== undefined) set('close_hour', dto.closeHour);

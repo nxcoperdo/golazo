@@ -41,6 +41,8 @@ services:
     volumes:
       # Fotos de canchas y comprobantes. Incluir en los respaldos del VPS.
       - uploads:/app/storage
+      # Push FCM: descomenta (el archivo debe existir) y pon FCM_SERVICE_ACCOUNT_FILE=/run/secrets/fcm.json
+      - ./secrets/fcm.json:/run/secrets/fcm.json:ro
     ports:
       # Solo local: el acceso público pasa por Nginx.
       - "127.0.0.1:3000:3000"

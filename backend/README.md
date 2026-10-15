@@ -54,7 +54,7 @@ Esperan ~1 minuto entre corridas por el límite de intentos de `/auth`. Borran s
 2. `docker compose up -d db && docker compose run --rm migrate && docker compose up -d --build api`.
 3. Nginx termina TLS y reenvía a `127.0.0.1:3000` con `X-Forwarded-For`.
 4. **Respaldos:** `pg_dump` diario **y** el volumen `uploads` (fotos y comprobantes), copiados fuera del VPS.
-5. Opcionales en `.env`: `SMTP_URL`/`MAIL_FROM` (correos), `FCM_SERVICE_ACCOUNT_FILE` (push), `GOOGLE_CLIENT_ID`.
+5. Opcionales en `.env`: `SMTP_URL`/`MAIL_FROM` (correos), `FCM_SERVICE_ACCOUNT_FILE` (push: JSON de la cuenta de servicio de Firebase guardado en `backend/secrets/fcm.json`, montado como volumen en `docker-compose.yml`, y `FCM_SERVICE_ACCOUNT_FILE=/run/secrets/fcm.json`), `GOOGLE_CLIENT_ID`.
 
 ## Tareas programadas (cada minuto, con candado en la base)
 

@@ -6,6 +6,7 @@ import '../core/api/api_client.dart';
 import '../core/api/token_store.dart';
 import '../core/config.dart';
 import '../core/format.dart';
+import '../core/push.dart';
 import 'golazo_api.dart';
 import 'models.dart';
 
@@ -57,6 +58,7 @@ class SessionNotifier extends AsyncNotifier<AppUser?> {
       state = AsyncData(await _api.loginWithGoogle(idToken, phone: phone));
 
   Future<void> logout() async {
+    await ref.read(pushProvider).stop();
     await _api.logout();
     state = const AsyncData(null);
   }
@@ -90,10 +92,11 @@ final userIdProvider = Provider<String?>((ref) => ref.watch(sessionProvider).val
 // ---------------- Jugador ----------------
 
 class CourtFilters {
-  const CourtFilters({this.city, this.maxPrice, this.covered, this.lat, this.lng});
+  const CourtFilters({this.city, this.maxPrice, this.covered, this.courtType, this.lat, this.lng});
   final String? city;
   final int? maxPrice;
   final bool? covered;
+  final int? courtType;
   final double? lat;
   final double? lng;
 
@@ -106,6 +109,8 @@ class CourtFilters {
     bool clearPrice = false,
     bool? covered,
     bool clearCovered = false,
+    int? courtType,
+    bool clearCourtType = false,
     double? lat,
     double? lng,
     bool clearLocation = false,
@@ -114,6 +119,7 @@ class CourtFilters {
         city: clearCity ? null : (city ?? this.city),
         maxPrice: clearPrice ? null : (maxPrice ?? this.maxPrice),
         covered: clearCovered ? null : (covered ?? this.covered),
+        courtType: clearCourtType ? null : (courtType ?? this.courtType),
         lat: clearLocation ? null : (lat ?? this.lat),
         lng: clearLocation ? null : (lng ?? this.lng),
       );
@@ -136,6 +142,7 @@ final courtsProvider = FutureProvider.autoDispose<List<Court>>((ref) {
         city: f.city,
         maxPrice: f.maxPrice,
         covered: f.covered,
+        courtType: f.courtType,
         lat: f.lat,
         lng: f.lng,
       );

@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import '../../data/models.dart';
+import 'design.dart';
 
 String bookingStatusLabel(BookingStatus s) => switch (s) {
       BookingStatus.pendingPayment => 'Falta comprobante',
@@ -10,34 +9,40 @@ String bookingStatusLabel(BookingStatus s) => switch (s) {
       BookingStatus.cancelled => 'Cancelada',
     };
 
-Color bookingStatusColor(BookingStatus s) => switch (s) {
-      BookingStatus.confirmed => Colors.green.shade700,
-      BookingStatus.pendingReview => Colors.blue.shade700,
-      BookingStatus.pendingPayment => Colors.orange.shade800,
-      BookingStatus.rejected => Colors.red.shade700,
-      BookingStatus.cancelled => Colors.grey.shade600,
-    };
-
-String courtStatusLabel(CourtStatus s) => switch (s) {
-      CourtStatus.pending => 'Pendiente',
-      CourtStatus.active => 'Activa',
-      CourtStatus.suspended => 'Oculta',
-    };
-
-Color courtStatusColor(CourtStatus s) => switch (s) {
-      CourtStatus.active => Colors.green.shade700,
-      CourtStatus.pending => Colors.orange.shade800,
-      CourtStatus.suspended => Colors.grey.shade600,
-    };
-
 String paymentStatusLabel(PaymentStatus s) => switch (s) {
       PaymentStatus.pending => 'Por revisar',
       PaymentStatus.approved => 'Aprobado',
       PaymentStatus.rejected => 'Rechazado',
     };
 
-Color paymentStatusColor(PaymentStatus s) => switch (s) {
-      PaymentStatus.approved => Colors.green.shade700,
-      PaymentStatus.pending => Colors.orange.shade800,
-      PaymentStatus.rejected => Colors.red.shade700,
+// ---- Etiquetas y tonos de las píldoras de estado (diseño) ----
+
+/// "Completada" cuando una reserva confirmada ya se jugó.
+String bookingLabelFor(Booking b) =>
+    b.status == BookingStatus.confirmed && b.isPast ? 'Completada' : bookingStatusLabel(b.status);
+
+PillTone bookingToneFor(Booking b) => switch (b.status) {
+      BookingStatus.confirmed => b.isPast ? PillTone.gray : PillTone.green,
+      BookingStatus.pendingReview => PillTone.blue,
+      BookingStatus.pendingPayment => PillTone.amber,
+      BookingStatus.rejected => PillTone.red,
+      BookingStatus.cancelled => PillTone.red,
+    };
+
+String courtStateLabel(CourtStatus s) => switch (s) {
+      CourtStatus.active => 'Activa',
+      CourtStatus.pending => 'Mensualidad pendiente',
+      CourtStatus.suspended => 'Oculta',
+    };
+
+PillTone courtTone(CourtStatus s) => switch (s) {
+      CourtStatus.active => PillTone.green,
+      CourtStatus.pending => PillTone.amber,
+      CourtStatus.suspended => PillTone.gray,
+    };
+
+PillTone paymentTone(PaymentStatus s) => switch (s) {
+      PaymentStatus.approved => PillTone.green,
+      PaymentStatus.pending => PillTone.amber,
+      PaymentStatus.rejected => PillTone.red,
     };

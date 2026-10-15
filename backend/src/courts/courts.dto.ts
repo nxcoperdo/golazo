@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -14,12 +15,16 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+/** Jugadores por equipo: Fútbol 5, 6, 7, 8 u 11. */
+export const COURT_TYPES = [5, 6, 7, 8, 11];
+
 const toBool = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 
 export class ListCourtsQuery {
   @IsOptional() @IsString() @MaxLength(60) city?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) maxPrice?: number;
   @IsOptional() @Transform(toBool) @IsBoolean() covered?: boolean;
+  @IsOptional() @Type(() => Number) @IsIn(COURT_TYPES) courtType?: number;
   /** Si llegan lat y lng, se ordena por cercanía. */
   @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) lat?: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) lng?: number;
@@ -41,6 +46,7 @@ export class CreateCourtDto {
   @IsNumber() @Min(-90) @Max(90) lat!: number;
   @IsNumber() @Min(-180) @Max(180) lng!: number;
   @IsBoolean() covered!: boolean;
+  @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
   @IsInt() @Min(1000) @Max(1_000_000) pricePerHour!: number;
   @IsInt() @Min(0) @Max(23) openHour!: number;
   @IsInt() @Min(1) @Max(24) closeHour!: number;
@@ -56,6 +62,7 @@ export class UpdateCourtDto {
   @IsOptional() @IsNumber() @Min(-90) @Max(90) lat?: number;
   @IsOptional() @IsNumber() @Min(-180) @Max(180) lng?: number;
   @IsOptional() @IsBoolean() covered?: boolean;
+  @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
   @IsOptional() @IsInt() @Min(1000) @Max(1_000_000) pricePerHour?: number;
   @IsOptional() @IsInt() @Min(0) @Max(23) openHour?: number;
   @IsOptional() @IsInt() @Min(1) @Max(24) closeHour?: number;

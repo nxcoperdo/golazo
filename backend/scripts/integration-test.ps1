@@ -54,7 +54,7 @@ Check "jugador con rol player" ($a.user.role -eq 'player') $a.user.role
 $ot = $own.accessToken; $at = $a.accessToken; $bt = $b.accessToken
 
 Write-Host "== Canchas (dueño)"
-$c1 = Call Post /owner/courts @{name='Cancha Con Anticipo';city="Bogotá";address='Cra 7 # 10-20';lat=4.711;lng=-74.072;covered=$true;pricePerHour=90000;openHour=0;closeHour=24;requiresDeposit=$true;depositPercent=40} $ot
+$c1 = Call Post /owner/courts @{name='Cancha Con Anticipo';city="Bogotá";address='Cra 7 # 10-20';lat=4.711;lng=-74.072;covered=$true;courtType=7;pricePerHour=90000;openHour=0;closeHour=24;requiresDeposit=$true;depositPercent=40} $ot
 Check "crear cancha -> 201/200" ($c1.code -eq 200 -or $c1.code -eq 201) "$($c1.code) $($c1.raw)"
 Check "nace en estado pending" ($c1.body.status -eq 'pending') $c1.body.status
 $court1 = $c1.body.id
@@ -83,6 +83,17 @@ Check "distancia calculada" ($near.body[0].distanceM -gt 0) ""
 Check "filtro techada" (@((Call Get '/courts?covered=true' $null $null).body | Where-Object { $_.id -eq $court2 }).Count -eq 0) ""
 Check "filtro precio máximo" (@((Call Get '/courts?maxPrice=80000' $null $null).body | Where-Object { $_.id -eq $court1 }).Count -eq 0) ""
 Check "parámetro inválido -> 400" ((Call Get '/courts?maxPrice=abc' $null $null).code -eq 400) ""
+Write-Host "== Tipo de cancha"
+Check "cancha creada con courtType=7" ($c1.body.courtType -eq 7) $c1.body.courtType
+Check "sin courtType queda en Fútbol 5" ($c2.body.courtType -eq 5) $c2.body.courtType
+Check "detalle público trae el tipo" ((Call Get "/courts/$court1" $null $null).body.courtType -eq 7) ""
+Check "filtro courtType=7 la incluye y excluye la otra" (@((Call Get '/courts?courtType=7' $null $null).body | Where-Object { $_.id -eq $court1 }).Count -eq 1 -and @((Call Get '/courts?courtType=7' $null $null).body | Where-Object { $_.id -eq $court2 }).Count -eq 0) ""
+Check "filtro courtType=5 trae la de Fútbol 5" (@((Call Get '/courts?courtType=5' $null $null).body | Where-Object { $_.id -eq $court2 }).Count -eq 1) ""
+Check "courtType inválido en el filtro -> 400" ((Call Get '/courts?courtType=9' $null $null).code -eq 400) ""
+Check "crear con courtType=9 -> 400" ((Call Post /owner/courts @{name='Mala Tipo';city='Bogotá';address='Cra 1 # 1-1';lat=4;lng=-74;covered=$true;courtType=9;pricePerHour=5000;openHour=1;closeHour=2;requiresDeposit=$false} $ot).code -eq 400) ""
+$upd = Call Patch "/owner/courts/$court2" @{courtType=8} $ot
+Check "el dueño cambia el tipo (PATCH)" ($upd.body.courtType -eq 8) "$($upd.code) $($upd.raw)"
+$null = Call Patch "/owner/courts/$court2" @{courtType=5} $ot
 
 Write-Host "== Reservas: anticipo y doble reserva"
 $day = (Get-Date).ToUniversalTime().Date.AddDays(2).AddHours(15)   # 10:00 a. m. Colombia
@@ -93,6 +104,8 @@ Check "anticipo 40% sobre el total (72000)" ($r1.body.deposit -eq 72000) $r1.bod
 Check "estado pending_payment" ($r1.body.status -eq 'pending_payment') $r1.body.status
 Check "trae cuentas de pago" ($r1.body.paymentMethods.Count -eq 1) ""
 Check "no es de última hora" ($r1.body.lastMinute -eq $false) ""
+$minsLeft = ([DateTime]::Parse($r1.body.payBy).ToUniversalTime() - (Get-Date).ToUniversalTime()).TotalMinutes
+Check "payBy: límite de ~30 min para subir el comprobante" ($minsLeft -gt 28 -and $minsLeft -le 30.5) "$minsLeft"
 
 $r2 = Call Post /bookings @{courtId=$court1;startAt=(Iso $day.AddHours(1));hours=1} $bt
 Check "traslape (otro jugador) -> 409 SLOT_TAKEN" ($r2.code -eq 409 -and $r2.body.code -eq 'SLOT_TAKEN') "$($r2.code) $($r2.raw)"
@@ -120,6 +133,7 @@ Check "reserva de última hora creada" ($ls.code -eq 200 -or $ls.code -eq 201) "
 Check "marcada lastMinute" ($ls.body.lastMinute -eq $true) ""
 Check "anticipo 30% aunque la cancha no lo exija (21000)" ($ls.body.deposit -eq 21000) $ls.body.deposit
 Check "sin pago hecho se puede cancelar" ((Call Post "/bookings/$($ls.body.id)/cancel" $null $at).body.status -eq 'cancelled') ""
+Check "cancelada: payBy es null" ($null -eq (Call Get "/bookings/$($ls.body.id)" $null $at).body.payBy) ""
 
 Write-Host "== Cancelación"
 $far = (Get-Date).ToUniversalTime().Date.AddDays(5).AddHours(15)

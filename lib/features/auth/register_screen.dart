@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/validators.dart';
+import '../../core/widgets/auth_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/providers.dart';
 
@@ -19,7 +20,6 @@ class _RegisterState extends ConsumerState<RegisterScreen> {
   final _email = TextEditingController();
   final _phone = TextEditingController();
   final _password = TextEditingController();
-  bool _hide = true;
   bool _owner = false;
   bool _busy = false;
 
@@ -53,83 +53,78 @@ class _RegisterState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Crear cuenta')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Form(
-                key: _form,
-                child: AutofillGroup(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    TextFormField(
-                      controller: _name,
-                      textCapitalization: TextCapitalization.words,
-                      autofillHints: const [AutofillHints.name],
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Nombre completo'),
-                      validator: Validators.name,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Correo'),
-                      validator: Validators.email,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _phone,
-                      keyboardType: TextInputType.phone,
-                      autofillHints: const [AutofillHints.telephoneNumberNational],
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Celular de contacto',
-                        prefixText: '+57 ',
-                        helperText: 'Lo ve el dueño de la cancha cuando reservas',
-                      ),
-                      validator: Validators.phone,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: _hide,
-                      autofillHints: const [AutofillHints.newPassword],
-                      decoration: InputDecoration(
-                        labelText: 'Contraseña (mínimo 8 caracteres)',
-                        suffixIcon: IconButton(
-                          icon: Icon(_hide ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _hide = !_hide),
-                        ),
-                      ),
-                      validator: Validators.password,
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Soy dueño de una cancha'),
-                      subtitle: const Text(
-                          'Quiero publicar mi cancha y recibir reservas. Tiene una mensualidad para aparecer en la app.'),
-                      value: _owner,
-                      onChanged: (v) => setState(() => _owner = v),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _busy ? null : _submit,
-                      child: _busy
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Crear cuenta'),
-                    ),
-                  ]),
-                ),
-              ),
+    return AuthShell(
+      onBack: () => backOrLogin(context),
+      child: Form(
+        key: _form,
+        child: AutofillGroup(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 24),
+            const AuthTitle(
+              kicker: 'Tu equipo te espera',
+              title: 'Crea tu cuenta',
+              subtitle: 'Completa tus datos para empezar a reservar.',
             ),
-          ),
+            const SizedBox(height: 28),
+            AuthField(
+              label: 'Nombre completo',
+              icon: Icons.person_outline,
+              hint: 'Tu nombre y apellido',
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              autofillHints: const [AutofillHints.name],
+              textInputAction: TextInputAction.next,
+              validator: Validators.name,
+            ),
+            const SizedBox(height: 16),
+            AuthField(
+              label: 'Correo',
+              icon: Icons.mail_outline,
+              hint: 'tu@correo.com',
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              textInputAction: TextInputAction.next,
+              validator: Validators.email,
+            ),
+            const SizedBox(height: 16),
+            AuthField(
+              label: 'Celular de contacto',
+              icon: Icons.phone_outlined,
+              hint: '300 000 0000',
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              autofillHints: const [AutofillHints.telephoneNumberNational],
+              textInputAction: TextInputAction.next,
+              helperText: 'Celular de 10 dígitos. Lo ve el dueño de la cancha cuando reservas.',
+              validator: Validators.phone,
+            ),
+            const SizedBox(height: 16),
+            AuthField(
+              label: 'Contraseña',
+              icon: Icons.lock_outline,
+              hint: 'Mínimo 8 caracteres',
+              controller: _password,
+              password: true,
+              autofillHints: const [AutofillHints.newPassword],
+              validator: Validators.password,
+            ),
+            const SizedBox(height: 16),
+            SwitchCard(
+              title: 'Soy dueño de una cancha',
+              subtitle: 'Administra reservas y pagos. Tiene una mensualidad para aparecer en la app.',
+              value: _owner,
+              onChanged: (v) => setState(() => _owner = v),
+            ),
+            const SizedBox(height: 20),
+            PrimaryButton(label: 'Crear cuenta', busy: _busy, onPressed: _submit),
+            const SizedBox(height: 16),
+            Text(
+              'Al continuar aceptas los términos de uso y la política de privacidad.',
+              textAlign: TextAlign.center,
+              style: authText(11, weight: 500, color: const Color(0xFF7D8982), height: 1.5),
+            ),
+          ]),
         ),
       ),
     );

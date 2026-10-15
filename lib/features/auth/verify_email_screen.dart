@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/widgets/auth_ui.dart';
 import '../../data/providers.dart';
 
 /// Confirma el correo con el token del enlace (`golazo://verify-email?token=...`).
@@ -43,35 +44,26 @@ class _VerifyState extends ConsumerState<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Widget body;
-    if (_error != null) {
-      body = Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.error_outline, size: 64),
-        const SizedBox(height: 16),
-        Text(_error!, textAlign: TextAlign.center),
-      ]);
-    } else if (_done) {
-      body = const Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.verified_outlined, size: 64),
-        SizedBox(height: 16),
-        Text('¡Correo confirmado!', style: TextStyle(fontSize: 20)),
-      ]);
-    } else {
-      body = const CircularProgressIndicator();
-    }
-    return Scaffold(
-      appBar: AppBar(title: const Text('Confirmar correo')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            body,
-            const SizedBox(height: 24),
-            if (_done || _error != null)
-              FilledButton(onPressed: () => context.go('/'), child: const Text('Continuar')),
-          ]),
-        ),
-      ),
+    final loading = _error == null && !_done;
+    return AuthShell(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        if (loading)
+          const Center(child: CircularProgressIndicator(color: AuthColors.primary))
+        else ...[
+          Center(child: ResultBadge(ok: _done)),
+          const SizedBox(height: 28),
+          AuthTitle(
+            kicker: _done ? 'Todo listo' : 'No pudimos verificarlo',
+            title: _done ? '¡Correo confirmado!' : 'No pudimos confirmar tu correo',
+            subtitle: _done
+                ? 'Tu correo fue verificado correctamente. Ya puedes usar todas las funciones de Golazo.'
+                : _error,
+            center: true,
+          ),
+          const SizedBox(height: 36),
+          PrimaryButton(label: 'Continuar', onPressed: () => context.go('/')),
+        ],
+      ]),
     );
   }
 }

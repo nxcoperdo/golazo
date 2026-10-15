@@ -8,10 +8,11 @@
 *.keystore
 key.properties
 **/android/key.properties
-google-services.json
+google-services*.json
 GoogleService-Info.plist
 *service-account*.json
 backend/uploads/
+backend/secrets/
 
 # Miscellaneous
 *.class
@@ -61,3 +62,4 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+backend/tsconfig.build.tsbuildinfo

@@ -7,6 +7,10 @@ class BookingPolicy {
   static const freeCancelWindow = Duration(hours: 24);
   static const lastMinuteDepositPercent = 30;
 
+  /// Minutos para subir el comprobante antes de que la hora se libere
+  /// (el mismo valor por defecto de `UNPAID_MINUTES` en el servidor).
+  static const unpaidMinutes = 30;
+
   /// Máximo de horas seguidas en una sola reserva.
   static const maxHours = 4;
 

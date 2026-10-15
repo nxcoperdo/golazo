@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../data/providers.dart';
+import 'auth_ui.dart';
+import 'liquid_nav_bar.dart';
 import 'verify_banner.dart';
 
 class TabSpec {
@@ -22,7 +23,6 @@ class ShellScaffold extends ConsumerStatefulWidget {
     required this.tabs,
     required this.initialTab,
     this.notificationsTab,
-    this.showAppBar = false,
   });
 
   final List<TabSpec> tabs;
@@ -30,10 +30,6 @@ class ShellScaffold extends ConsumerStatefulWidget {
 
   /// Índice de la pestaña "Avisos" para mostrarle el contador de no leídos.
   final int? notificationsTab;
-
-  /// true = la barra superior la pone el shell (las páginas no traen Scaffold propio),
-  /// con atajos a Avisos y Perfil.
-  final bool showAppBar;
 
   @override
   ConsumerState<ShellScaffold> createState() => _ShellState();
@@ -72,38 +68,20 @@ class _ShellState extends ConsumerState<ShellScaffold> {
       ),
     ]);
     return Scaffold(
-      appBar: widget.showAppBar
-          ? AppBar(
-              title: Text(widget.tabs[_tab].label),
-              actions: [
-                IconButton(
-                  tooltip: 'Avisos',
-                  onPressed: () => context.push('/notifications'),
-                  icon: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text('$unread'),
-                    child: const Icon(Icons.notifications_outlined),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Mi perfil',
-                  onPressed: () => context.push('/profile'),
-                  icon: const Icon(Icons.person_outline),
-                ),
-              ],
-            )
-          : null,
-      body: widget.showAppBar ? content : SafeArea(bottom: false, child: content),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: [
+      backgroundColor: AuthColors.cream,
+      body: SafeArea(bottom: false, child: content),
+      // El contenido pasa por detrás de la barra de cristal; MediaQuery.padding.bottom
+      // incluye su altura para que las listas dejen espacio al final.
+      extendBody: true,
+      bottomNavigationBar: LiquidGlassNavBar(
+        index: _tab,
+        onChanged: (i) => setState(() => _tab = i),
+        items: [
           for (var i = 0; i < widget.tabs.length; i++)
-            NavigationDestination(
-              icon: i == widget.notificationsTab
-                  ? Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: Icon(widget.tabs[i].icon))
-                  : Icon(widget.tabs[i].icon),
+            NavItem(
               label: widget.tabs[i].label,
+              icon: widget.tabs[i].icon,
+              badge: i == widget.notificationsTab ? unread : 0,
             ),
         ],
       ),

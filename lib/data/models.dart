@@ -77,6 +77,11 @@ class CourtSubscription {
   final bool pendingReview;
 }
 
+/// Tipos de cancha: jugadores por equipo (Fútbol 5, 6, 7, 8 u 11).
+const courtTypes = [5, 6, 7, 8, 11];
+
+String courtTypeLabel(int n) => 'Fútbol $n';
+
 class Court {
   const Court({
     required this.id,
@@ -84,6 +89,7 @@ class Court {
     required this.city,
     required this.address,
     required this.covered,
+    this.courtType = 5,
     required this.pricePerHour,
     required this.openHour,
     required this.closeHour,
@@ -108,6 +114,7 @@ class Court {
   final String city;
   final String address;
   final bool covered;
+  final int courtType;
   final int pricePerHour;
   final int openHour;
   final int closeHour;
@@ -134,6 +141,7 @@ class Court {
       city: j['city'] as String,
       address: j['address'] as String,
       covered: j['covered'] as bool,
+      courtType: j['courtType'] == null ? 5 : _int(j['courtType']),
       pricePerHour: _int(j['pricePerHour']),
       openHour: _int(j['openHour']),
       closeHour: _int(j['closeHour']),
@@ -188,6 +196,7 @@ class Booking {
     required this.status,
     required this.cancellable,
     this.reviewed = false,
+    this.payBy,
     this.paymentMethods = const [],
   });
 
@@ -204,6 +213,10 @@ class Booking {
 
   /// El jugador ya calificó esta reserva.
   final bool reviewed;
+
+  /// Hasta cuándo se puede subir el comprobante antes de que la hora se libere
+  /// (solo mientras la reserva está en `pendingPayment`).
+  final DateTime? payBy;
 
   /// Solo se llena mientras falta pagar.
   final List<PaymentMethod> paymentMethods;
@@ -228,6 +241,7 @@ class Booking {
         status: bookingStatusFrom(j['status'] as String),
         cancellable: j['cancellable'] as bool? ?? false,
         reviewed: j['reviewed'] as bool? ?? false,
+        payBy: _dtOrNull(j['payBy']),
         paymentMethods: _list(j['paymentMethods'], PaymentMethod.fromJson),
       );
 }

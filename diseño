@@ -1,0 +1,1671 @@
+import { FormEvent, useEffect, useMemo, useState } from "react";
+
+type IconName =
+  | "calendar"
+  | "chevron"
+  | "clock"
+  | "copy"
+  | "eye"
+  | "heart"
+  | "home"
+  | "lock"
+  | "location"
+  | "mail"
+  | "map"
+  | "phone"
+  | "search"
+  | "star"
+  | "upload"
+  | "user";
+
+function Icon({ name, size = 20, filled = false }: { name: IconName; size?: number; filled?: boolean }) {
+  const paths: Record<IconName, React.ReactNode> = {
+    calendar: <><path d="M6 2v3M14 2v3M3 8h14M5 4h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /></>,
+    chevron: <path d="m7 4 6 6-6 6" />,
+    clock: <><circle cx="10" cy="10" r="8" /><path d="M10 6v4l3 2" /></>,
+    copy: <><rect x="6" y="6" width="11" height="11" rx="2" /><path d="M14 6V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
+    eye: <><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z" /><circle cx="10" cy="10" r="2.5" /></>,
+    heart: <path d="M17.4 4.6a4.2 4.2 0 0 0-5.9 0L10 6.1 8.5 4.6a4.2 4.2 0 0 0-5.9 5.9L10 18l7.4-7.5a4.2 4.2 0 0 0 0-5.9Z" />,
+    home: <><path d="m2 9 8-7 8 7" /><path d="M4 8v10h12V8M8 18v-6h4v6" /></>,
+    lock: <><rect x="4" y="8" width="12" height="10" rx="2" /><path d="M7 8V6a3 3 0 0 1 6 0v2" /></>,
+    location: <><path d="M16 8c0 5-6 10-6 10S4 13 4 8a6 6 0 1 1 12 0Z" /><circle cx="10" cy="8" r="2" /></>,
+    mail: <><rect x="2" y="4" width="16" height="12" rx="2" /><path d="m3 6 7 5 7-5" /></>,
+    map: <><path d="m2 4 5-2 6 2 5-2v14l-5 2-6-2-5 2Z" /><path d="M7 2v14M13 4v14" /></>,
+    phone: <path d="M6 2H4a2 2 0 0 0-2 2c0 7.7 6.3 14 14 14a2 2 0 0 0 2-2v-2l-4-1-1 2c-3.5-1.5-6.5-4.5-8-8l2-1-1-4Z" />,
+    search: <><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 5 5" /></>,
+    star: <path d="m10 2 2.4 5 5.6.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.6-.8Z" />,
+    upload: <><path d="M10 13V3M6 7l4-4 4 4" /><path d="M3 12v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></>,
+    user: <><circle cx="10" cy="6" r="4" /><path d="M3 18c.8-4 3.1-6 7-6s6.2 2 7 6" /></>,
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      fill={filled ? "currentColor" : "none"}
+      height={size}
+      viewBox="0 0 20 20"
+      width={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.7"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+const courts = [
+  {
+    id: 1,
+    name: "La Bombonera 5",
+    city: "Bogotá",
+    area: "Chapinero",
+    price: 90000,
+    rating: 4.9,
+    reviews: 128,
+    type: "Fútbol 5",
+    distance: "1,2 km",
+    next: "Hoy · 6:00 p. m.",
+    covered: true,
+    deposit: 30,
+    image: "https://images.unsplash.com/photo-1517747614396-d21a78b850e8?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    id: 2,
+    name: "Golazo Arena",
+    city: "Bogotá",
+    area: "Teusaquillo",
+    price: 70000,
+    rating: 4.8,
+    reviews: 96,
+    type: "Fútbol 7",
+    distance: "2,8 km",
+    next: "Hoy · 8:00 p. m.",
+    covered: false,
+    deposit: 20,
+    image: "https://images.unsplash.com/photo-1589487391730-58f20eb2c308?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    id: 3,
+    name: "Cancha El Potrero",
+    city: "Medellín",
+    area: "Laureles",
+    price: 80000,
+    rating: 4.7,
+    reviews: 74,
+    type: "Fútbol 5",
+    distance: "3,1 km",
+    next: "Mañana · 5:30 p. m.",
+    covered: true,
+    deposit: 30,
+    image: "https://images.unsplash.com/photo-1546717003-caee5f93a9db?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    id: 4,
+    name: "Distrito Fútbol",
+    city: "Cali",
+    area: "San Fernando",
+    price: 75000,
+    rating: 4.6,
+    reviews: 61,
+    type: "Fútbol 6",
+    distance: "4,4 km",
+    next: "Mañana · 7:00 p. m.",
+    covered: false,
+    deposit: 0,
+    image: "https://images.unsplash.com/photo-1600529533273-938db2591dc4?auto=format&fit=crop&w=1200&q=85",
+  },
+];
+
+const cities = ["Todas", "Bogotá", "Medellín", "Cali"];
+
+function PlayerCourts({
+  onOpenCourt,
+  goTo,
+}: {
+  onOpenCourt: (court: (typeof courts)[number]) => void;
+  goTo: (screen: AppScreen) => void;
+}) {
+  const [city, setCity] = useState("Todas");
+  const [query, setQuery] = useState("");
+  const [nearby, setNearby] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [coveredOnly, setCoveredOnly] = useState(false);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [priceSheet, setPriceSheet] = useState(false);
+  const [favorites, setFavorites] = useState<number[]>([2]);
+
+  const filteredCourts = useMemo(
+    () =>
+      courts.filter(
+        (court) =>
+          (city === "Todas" || court.city === city) &&
+          (!query || `${court.name} ${court.city} ${court.area}`.toLowerCase().includes(query.toLowerCase())) &&
+          (!nearby || Number(court.distance.replace(",", ".").replace(" km", "")) <= 3) &&
+          (!coveredOnly || court.covered) &&
+          (!maxPrice || court.price <= maxPrice),
+      ),
+    [city, coveredOnly, maxPrice, nearby, query],
+  );
+
+  function toggleFavorite(id: number) {
+    setFavorites((current) =>
+      current.includes(id) ? current.filter((favorite) => favorite !== id) : [...current, id],
+    );
+  }
+
+  function toggleNearby() {
+    if (nearby) {
+      setNearby(false);
+      setLocationStatus("idle");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setLocationStatus("error");
+      return;
+    }
+    setLocationStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setNearby(true);
+        setLocationStatus("ready");
+      },
+      () => setLocationStatus("error"),
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f4f5ec] text-[#11251b]">
+      <header className="sticky top-0 z-40 border-b border-[#143e2a]/10 bg-[#f4f5ec]/92 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+          <button className="flex items-center gap-2" aria-label="Ir al inicio">
+            <span className="text-xl font-extrabold tracking-[-0.04em]">Noventa</span>
+          </button>
+
+          <nav className="hidden items-center gap-8 text-sm font-bold md:flex" aria-label="Navegación principal">
+            <button className="text-[#174e32]">Explorar</button>
+            <button className="text-[#5c6d63] transition hover:text-[#174e32]">Mis reservas</button>
+            <button className="text-[#5c6d63] transition hover:text-[#174e32]">Favoritos</button>
+          </nav>
+
+          <button className="grid size-10 place-items-center rounded-full border border-[#143e2a]/15 bg-white text-[#174e32]" aria-label="Abrir perfil">
+            <Icon name="user" />
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section className="mx-auto max-w-7xl pb-28 pt-6 lg:pb-16 lg:pt-10">
+          <div className="px-5 lg:px-8">
+            <p className="text-sm font-bold text-[#438158]">Juega donde quieras</p>
+            <div className="mt-1 flex items-end justify-between">
+              <h2 className="text-2xl font-extrabold tracking-[-0.04em] sm:text-3xl">Encuentra tu cancha</h2>
+              <button className="hidden items-center gap-2 text-sm font-bold text-[#174e32] sm:flex">
+                <Icon name="map" />
+                Ver mapa
+              </button>
+            </div>
+
+            <label className="mt-5 flex items-center gap-3 rounded-2xl border border-[#143e2a]/10 bg-white px-4 py-3.5 shadow-[0_8px_28px_rgba(19,53,36,.07)] focus-within:border-[#438158] focus-within:ring-2 focus-within:ring-[#438158]/10">
+              <span className="text-[#174e32]"><Icon name="search" size={20} /></span>
+              <input
+                className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:font-medium placeholder:text-[#8c9891]"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Busca por cancha, barrio o ciudad"
+                value={query}
+              />
+              {query && (
+                <button className="grid size-7 place-items-center rounded-full bg-[#edf1eb] text-xs font-bold text-[#65736b]" onClick={() => setQuery("")} type="button">×</button>
+              )}
+            </label>
+          </div>
+
+          <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-5 pb-3 lg:px-8">
+            <button
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-extrabold transition ${
+                nearby ? "border-[#174e32] bg-[#174e32] text-white shadow-[0_7px_18px_rgba(23,78,50,.18)]" : "border-[#143e2a]/10 bg-white text-[#405348]"
+              }`}
+              onClick={toggleNearby}
+            >
+              {locationStatus === "loading" ? <span className="size-4 animate-spin rounded-full border-2 border-[#174e32]/20 border-t-[#174e32]" /> : <Icon name="location" size={16} />}
+              {locationStatus === "loading" ? "Ubicando..." : "Cerca de mí"}
+            </button>
+            {cities.map((item) => (
+              <button
+                className={`shrink-0 rounded-full border px-4 py-2.5 text-sm font-extrabold transition ${
+                  city === item
+                    ? "border-[#174e32] bg-[#e1f0dc] text-[#174e32]"
+                    : "border-[#143e2a]/10 bg-white text-[#405348]"
+                }`}
+                key={item}
+                onClick={() => setCity(item)}
+              >
+                {item}
+              </button>
+            ))}
+            <button
+              className={`shrink-0 rounded-full border px-4 py-2.5 text-sm font-extrabold transition ${
+                coveredOnly ? "border-[#174e32] bg-[#174e32] text-white" : "border-[#143e2a]/10 bg-white text-[#405348]"
+              }`}
+              onClick={() => setCoveredOnly(!coveredOnly)}
+            >
+              Techada {coveredOnly && "✓"}
+            </button>
+            <button
+              className={`flex shrink-0 items-center gap-1 rounded-full border px-4 py-2.5 text-sm font-extrabold transition ${
+                maxPrice ? "border-[#174e32] bg-[#174e32] text-white" : "border-[#143e2a]/10 bg-white text-[#405348]"
+              }`}
+              onClick={() => setPriceSheet(true)}
+            >
+              {maxPrice ? `Hasta $${maxPrice / 1000} mil` : "Sin límite de precio"}
+              <span className="rotate-90"><Icon name="chevron" size={14} /></span>
+            </button>
+            <button
+              className="shrink-0 rounded-full border border-[#143e2a]/10 bg-white px-4 py-2.5 text-sm font-extrabold text-[#405348]"
+              onClick={() => {
+                setCity("Todas");
+                setNearby(false);
+                setLocationStatus("idle");
+                setCoveredOnly(false);
+                setMaxPrice(null);
+                setQuery("");
+              }}
+            >
+              Limpiar
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between px-5 pt-3 lg:px-8">
+            <p className="text-sm font-extrabold">{filteredCourts.length} {filteredCourts.length === 1 ? "cancha disponible" : "canchas disponibles"}</p>
+            <button className="flex items-center gap-1.5 text-xs font-bold text-[#438158] sm:hidden"><Icon name="map" size={16} />Mapa</button>
+          </div>
+
+          <div className="mt-5 grid gap-5 px-5 md:grid-cols-2 lg:px-8 xl:grid-cols-3">
+            {filteredCourts.map((court, index) => (
+              <article
+                className={`group cursor-pointer overflow-hidden rounded-[24px] border border-[#143e2a]/10 bg-white shadow-[0_12px_36px_rgba(19,53,36,.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(19,53,36,.14)] ${
+                  index === 0 ? "md:col-span-2 xl:col-span-1" : ""
+                }`}
+                key={court.id}
+                onClick={() => onOpenCourt(court)}
+              >
+                <div className="relative h-52 overflow-hidden">
+                  <img
+                    alt={`Cancha sintética ${court.name}`}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    src={court.image}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#071b10]/45 via-transparent to-transparent" />
+                  <span className="absolute left-4 top-4 rounded-full bg-[#d9ff5b] px-3 py-1.5 text-xs font-extrabold text-[#11251b]">
+                    {court.type}
+                  </span>
+                  {court.covered && (
+                    <span className="absolute bottom-4 right-4 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-extrabold text-[#174e32] backdrop-blur">
+                      Techada
+                    </span>
+                  )}
+                  <button
+                    aria-label={favorites.includes(court.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
+                    className={`absolute right-4 top-4 grid size-10 place-items-center rounded-full backdrop-blur-md transition ${
+                      favorites.includes(court.id) ? "bg-[#d9ff5b] text-[#174e32]" : "bg-white/90 text-[#174e32]"
+                    }`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleFavorite(court.id);
+                    }}
+                  >
+                    <Icon name="heart" filled={favorites.includes(court.id)} />
+                  </button>
+                  <span className="absolute bottom-4 left-4 flex items-center gap-1.5 rounded-full bg-[#071b10]/75 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md">
+                    <Icon name="location" size={14} />
+                    {court.distance}
+                  </span>
+                </div>
+
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-extrabold tracking-[-0.025em]">{court.name}</h3>
+                      <p className="mt-1 text-sm font-medium text-[#6c7b72]">{court.area} · {court.city}</p>
+                      {court.deposit > 0 && (
+                        <p className="mt-2 inline-flex rounded-full bg-[#edf3e9] px-2.5 py-1 text-[10px] font-extrabold text-[#285e3c]">
+                          Anticipo {court.deposit} %
+                        </p>
+                      )}
+                    </div>
+                    <span className="flex items-center gap-1 text-sm font-extrabold">
+                      <span className="text-[#f3b61f]"><Icon name="star" size={16} filled /></span>
+                      {court.rating}
+                      <span className="font-medium text-[#8b978f]">({court.reviews})</span>
+                    </span>
+                  </div>
+
+                  <div className="my-5 flex items-center gap-2 rounded-xl bg-[#edf3e9] px-3 py-2.5 text-sm font-bold text-[#285e3c]">
+                    <Icon name="clock" size={17} />
+                    Próximo horario: {court.next}
+                  </div>
+
+                  <div className="flex items-end justify-between gap-4 border-t border-[#143e2a]/10 pt-4">
+                    <div>
+                      <p className="text-xs font-semibold text-[#78877e]">Desde</p>
+                      <p className="mt-0.5 text-xl font-extrabold tracking-[-0.03em]">
+                        ${court.price.toLocaleString("es-CO")}
+                        <span className="ml-1 text-xs font-semibold text-[#78877e]">/ hora</span>
+                      </p>
+                    </div>
+                    <button
+                      className="flex items-center gap-2 rounded-xl bg-[#174e32] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#0d3b24]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenCourt(court);
+                      }}
+                    >
+                      Reservar
+                      <Icon name="chevron" size={16} />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {filteredCourts.length === 0 && (
+            <div className="mx-5 mt-8 rounded-[24px] border border-dashed border-[#174e32]/25 bg-white px-6 py-16 text-center lg:mx-8">
+              <p className="text-lg font-extrabold">No encontramos canchas con esos filtros</p>
+              <p className="mt-1 text-sm text-[#78877e]">Prueba otra ciudad o amplía el rango de precio.</p>
+              <button className="mt-4 rounded-full bg-[#e1f0dc] px-5 py-2.5 text-sm font-extrabold text-[#174e32]" onClick={() => {
+                setCity("Todas");
+                setNearby(false);
+                setLocationStatus("idle");
+                setCoveredOnly(false);
+                setMaxPrice(null);
+                setQuery("");
+              }}>
+                Limpiar búsqueda
+              </button>
+            </div>
+          )}
+        </section>
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#143e2a]/10 bg-white/95 px-6 pb-[max(10px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:hidden" aria-label="Navegación móvil">
+        <div className="mx-auto flex max-w-sm items-center justify-between">
+          {[
+            { icon: "home" as IconName, label: "Canchas", screen: "courts" as AppScreen, active: true },
+            { icon: "calendar" as IconName, label: "Reservas", screen: "player-reservations" as AppScreen, active: false },
+            { icon: "heart" as IconName, label: "Avisos", screen: "notifications" as AppScreen, active: false },
+            { icon: "user" as IconName, label: "Perfil", screen: "profile" as AppScreen, active: false },
+          ].map((item) => (
+            <button className={`flex flex-col items-center gap-1 text-[11px] font-bold ${item.active ? "text-[#174e32]" : "text-[#8a968f]"}`} key={item.label} onClick={() => goTo(item.screen)}>
+              <span className={item.active ? "rounded-xl bg-[#d9ff5b] px-4 py-1.5" : "px-4 py-1.5"}>
+                <Icon name={item.icon} size={19} />
+              </span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {priceSheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#071b10]/45 backdrop-blur-[2px]" onClick={() => setPriceSheet(false)}>
+          <div className="w-full max-w-md rounded-t-[28px] bg-white px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-3 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6]" />
+            <div className="mt-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#438158]">Filtrar</p>
+                <h3 className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Precio por hora</h3>
+              </div>
+              <button aria-label="Cerrar" className="grid size-9 place-items-center rounded-full bg-[#eef1ec] text-lg font-semibold text-[#52665a]" onClick={() => setPriceSheet(false)}>×</button>
+            </div>
+            <div className="mt-5 space-y-2">
+              {[
+                { label: "Sin límite", value: null },
+                { label: "Hasta $60.000 por hora", value: 60000 },
+                { label: "Hasta $80.000 por hora", value: 80000 },
+                { label: "Hasta $100.000 por hora", value: 100000 },
+                { label: "Hasta $120.000 por hora", value: 120000 },
+              ].map((option) => (
+                <button
+                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3.5 text-left text-sm font-bold ${
+                    maxPrice === option.value ? "border-[#174e32] bg-[#edf5e9] text-[#174e32]" : "border-[#143e2a]/10 text-[#405348]"
+                  }`}
+                  key={option.label}
+                  onClick={() => {
+                    setMaxPrice(option.value);
+                    setPriceSheet(false);
+                  }}
+                >
+                  {option.label}
+                  <span className={`grid size-5 place-items-center rounded-full border ${maxPrice === option.value ? "border-[#174e32] bg-[#174e32] text-[11px] text-white" : "border-[#9aa49e]"}`}>
+                    {maxPrice === option.value && "✓"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {locationStatus === "error" && (
+        <div className="fixed bottom-24 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-4 rounded-2xl bg-[#11251b] px-4 py-3.5 text-white shadow-2xl">
+          <p className="text-xs font-semibold leading-relaxed">Activa la ubicación para mostrar canchas cercanas.</p>
+          <button className="shrink-0 text-xs font-extrabold text-[#d9ff5b]" onClick={() => setLocationStatus("idle")}>Entendido</button>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+const galleryImages = [
+  "https://images.unsplash.com/photo-1517747614396-d21a78b850e8?auto=format&fit=crop&w=1200&q=85",
+  "https://images.unsplash.com/photo-1600529533273-938db2591dc4?auto=format&fit=crop&w=1200&q=85",
+  "https://images.unsplash.com/photo-1589487391730-58f20eb2c308?auto=format&fit=crop&w=1200&q=85",
+];
+
+const timeSlots = [
+  { label: "8:00 a. m.", occupied: false },
+  { label: "9:00 a. m.", occupied: true },
+  { label: "10:00 a. m.", occupied: false },
+  { label: "11:00 a. m.", occupied: false },
+  { label: "12:00 p. m.", occupied: false },
+  { label: "1:00 p. m.", occupied: true },
+  { label: "2:00 p. m.", occupied: true },
+  { label: "3:00 p. m.", occupied: false },
+  { label: "4:00 p. m.", occupied: false },
+  { label: "5:00 p. m.", occupied: false },
+  { label: "6:00 p. m.", occupied: false },
+  { label: "7:00 p. m.", occupied: true },
+  { label: "8:00 p. m.", occupied: false },
+  { label: "9:00 p. m.", occupied: false },
+];
+
+type BookingDraft = {
+  court: (typeof courts)[number];
+  dateLabel: string;
+  hours: number;
+  timeLabel: string;
+  total: number;
+  advance: number;
+};
+
+function CourtDetail({
+  court,
+  onBack,
+  onContinue,
+}: {
+  court: (typeof courts)[number];
+  onBack: () => void;
+  onContinue: (booking: BookingDraft) => void;
+}) {
+  const [dayIndex, setDayIndex] = useState(0);
+  const [selectedHours, setSelectedHours] = useState<number[]>([]);
+  const [phone, setPhone] = useState("");
+  const [favorite, setFavorite] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [advanceDialog, setAdvanceDialog] = useState(false);
+  const [reportDialog, setReportDialog] = useState(false);
+  const advanceRate = court.deposit / 100;
+
+  const days = useMemo(() => {
+    const dayNames = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+    const monthNames = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    return Array.from({ length: 14 }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() + index);
+      return {
+        day: index === 0 ? "Hoy" : dayNames[date.getDay()],
+        date: date.getDate(),
+        month: monthNames[date.getMonth()],
+      };
+    });
+  }, []);
+
+  function selectHour(index: number) {
+    if (timeSlots[index].occupied) return;
+    if (selectedHours.length === 0) {
+      setSelectedHours([index]);
+      return;
+    }
+    if (selectedHours.includes(index)) {
+      if (index === selectedHours[0]) setSelectedHours(selectedHours.slice(1));
+      else if (index === selectedHours[selectedHours.length - 1]) setSelectedHours(selectedHours.slice(0, -1));
+      else setSelectedHours([index]);
+      return;
+    }
+    const first = selectedHours[0];
+    const last = selectedHours[selectedHours.length - 1];
+    const next = index === first - 1 ? [index, ...selectedHours] : index === last + 1 ? [...selectedHours, index] : [index];
+    setSelectedHours(next.length <= 4 ? next : [index]);
+  }
+
+  const total = selectedHours.length * court.price;
+  const advance = Math.round(total * advanceRate);
+  const canBook = selectedHours.length > 0 && /^3\d{9}$/.test(phone);
+
+  function reserve() {
+    if (!canBook) return;
+    if (court.deposit > 0) {
+      setAdvanceDialog(true);
+      return;
+    }
+    setNotice("¡Reserva confirmada! Puedes verla en Mis reservas.");
+    window.setTimeout(() => setNotice(""), 3500);
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f4f5ec] pb-44 text-[#11251b]">
+      <header className="fixed inset-x-0 top-0 z-40 mx-auto flex max-w-md items-center justify-between px-5 pt-[max(16px,env(safe-area-inset-top))]">
+        <button aria-label="Volver a canchas" className="grid size-11 place-items-center rounded-full bg-white/95 text-[#174e32] shadow-lg backdrop-blur" onClick={onBack}>
+          <span className="rotate-180"><Icon name="chevron" /></span>
+        </button>
+        <button
+          aria-label={favorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+          className={`grid size-11 place-items-center rounded-full shadow-lg backdrop-blur ${favorite ? "bg-[#d9ff5b] text-[#174e32]" : "bg-white/95 text-[#174e32]"}`}
+          onClick={() => setFavorite(!favorite)}
+        >
+          <Icon name="heart" filled={favorite} />
+        </button>
+      </header>
+
+      <main className="mx-auto max-w-md bg-[#f4f5ec]">
+        <section className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto">
+          {galleryImages.map((image, index) => (
+            <div className="relative h-80 w-full shrink-0 snap-center" key={image}>
+              <img alt={`${court.name}, fotografía ${index + 1}`} className="h-full w-full object-cover" src={index === 0 ? court.image : image} />
+              <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#071b10]/55 to-transparent" />
+              <span className="absolute bottom-5 right-5 rounded-full bg-[#071b10]/70 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">
+                {index + 1} / {galleryImages.length}
+              </span>
+            </div>
+          ))}
+        </section>
+
+        <div className="space-y-3 px-5 pb-5 pt-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {court.covered && <span className="rounded-full bg-[#d9ff5b] px-3 py-1 text-[11px] font-extrabold text-[#174e32]">Techada</span>}
+                {court.deposit > 0 && <span className="rounded-full bg-[#e1eee1] px-3 py-1 text-[11px] font-extrabold text-[#285e3c]">Anticipo {court.deposit} %</span>}
+              </div>
+              <h1 className="text-3xl font-extrabold leading-tight tracking-[-0.05em]">{court.name}</h1>
+            </div>
+            <span className="mt-8 flex shrink-0 items-center gap-1 text-sm font-extrabold">
+              <span className="text-[#f3b61f]"><Icon name="star" size={17} filled /></span>
+              {court.rating}
+            </span>
+          </div>
+          <button className="flex items-center gap-1 text-sm font-semibold text-[#52665a]">
+            <span className="font-extrabold text-[#174e32]">{court.reviews} reseñas</span>
+            <Icon name="chevron" size={14} />
+          </button>
+          <p className="flex items-start gap-2 text-sm leading-relaxed text-[#5c6d63]">
+            <span className="mt-0.5 text-[#438158]"><Icon name="location" size={17} /></span>
+            Carrera 13 # 58-24, {court.area} · {court.city}
+          </p>
+        </div>
+
+        <div className="mx-5 h-px bg-[#143e2a]/10" />
+
+        <section className="px-5 py-6">
+          <h2 className="text-lg font-extrabold tracking-[-0.025em]">Sobre la cancha</h2>
+          <p className="mt-3 text-sm leading-6 text-[#65736b]">Cancha sintética en excelente estado, iluminada y techada. Incluye camerinos, parqueadero para bicicletas y zona de hidratación.</p>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white p-4">
+              <span className="text-[#438158]"><Icon name="clock" size={20} /></span>
+              <p className="mt-3 text-xs font-semibold text-[#78877e]">Horario</p>
+              <p className="mt-1 text-sm font-extrabold">8 a. m. – 10 p. m.</p>
+            </div>
+            <div className="rounded-2xl bg-white p-4">
+              <span className="text-[#438158]"><Icon name="calendar" size={20} /></span>
+              <p className="mt-3 text-xs font-semibold text-[#78877e]">Tipo</p>
+              <p className="mt-1 text-sm font-extrabold">{court.type} · {court.covered ? "Techada" : "Al aire libre"}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-[#143e2a]/10 bg-white py-6">
+          <div className="px-5">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#438158]">Paso 1</p>
+            <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Elige el día</h2>
+          </div>
+          <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-5">
+            {days.map((day, index) => (
+              <button
+                className={`flex min-w-16 shrink-0 flex-col items-center rounded-2xl border px-3 py-3 transition ${
+                  dayIndex === index ? "border-[#174e32] bg-[#174e32] text-white shadow-lg" : "border-[#143e2a]/10 bg-[#f7f8f2] text-[#5f7066]"
+                }`}
+                key={`${day.date}-${day.month}`}
+                onClick={() => {
+                  setDayIndex(index);
+                  setSelectedHours([]);
+                }}
+              >
+                <span className="text-[11px] font-bold capitalize">{day.day}</span>
+                <span className="mt-1 text-xl font-extrabold">{day.date}</span>
+                <span className="text-[10px] font-semibold uppercase">{day.month}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-8 px-5">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#438158]">Paso 2</p>
+                <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Elige la hora</h2>
+              </div>
+              <span className="text-xs font-semibold text-[#78877e]">Máx. 4 horas</span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {timeSlots.map((slot, index) => {
+                const selected = selectedHours.includes(index);
+                return (
+                  <button
+                    className={`rounded-xl border py-3 text-xs font-extrabold transition ${
+                      slot.occupied
+                        ? "cursor-not-allowed border-transparent bg-[#eef0eb] text-[#a6aea9] line-through"
+                        : selected
+                          ? "border-[#174e32] bg-[#d9ff5b] text-[#11251b]"
+                          : "border-[#143e2a]/12 bg-white text-[#304c3b]"
+                    }`}
+                    disabled={slot.occupied}
+                    key={slot.label}
+                    onClick={() => selectHour(index)}
+                  >
+                    {slot.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex gap-4 text-[11px] font-semibold text-[#77837c]">
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-white ring-1 ring-[#174e32]/20" />Libre</span>
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[#d9ff5b] ring-1 ring-[#174e32]" />Elegida</span>
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[#dfe3dd]" />Ocupada</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-6">
+          <h2 className="text-lg font-extrabold tracking-[-0.025em]">Tu celular de contacto</h2>
+          <p className="mt-1 text-xs leading-relaxed text-[#78877e]">El dueño lo usará únicamente si necesita contactarte por esta reserva.</p>
+          <div className="mt-4">
+            <Field
+              error={phone.length > 0 && !/^3\d{9}$/.test(phone) ? "Debe tener 10 dígitos y empezar por 3." : undefined}
+              icon="phone"
+              label="Celular"
+              onChange={(value) => setPhone(value.replace(/\D/g, "").slice(0, 10))}
+              placeholder="300 000 0000"
+              type="tel"
+              value={phone}
+            />
+          </div>
+        </section>
+
+        <section className="border-t border-[#143e2a]/10 bg-white px-5 py-6">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#438158]">Comunidad</p>
+              <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Reseñas</h2>
+            </div>
+            <button className="text-xs font-extrabold text-[#286a42]">Ver todas</button>
+          </div>
+          {[
+            { author: "Laura M.", rating: 5, text: "La cancha está impecable y la atención fue muy buena. Volveremos.", date: "Hace 3 días" },
+            { author: "Andrés P.", rating: 4, text: "Buena iluminación y fácil acceso. El parqueadero es pequeño.", date: "Hace 2 semanas" },
+          ].map((review) => (
+            <article className="border-b border-[#143e2a]/8 py-5 last:border-0" key={review.author}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-9 place-items-center rounded-full bg-[#e4eee0] text-xs font-extrabold text-[#174e32]">{review.author.charAt(0)}</span>
+                  <div>
+                    <p className="text-sm font-extrabold">{review.author}</p>
+                    <div className="mt-0.5 flex text-[#f3b61f]">{Array.from({ length: review.rating }, (_, index) => <Icon key={index} name="star" size={12} filled />)}</div>
+                  </div>
+                </div>
+                <span className="text-[11px] font-semibold text-[#8a968f]">{review.date}</span>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-[#5f7066]">{review.text}</p>
+              <button className="mt-2 text-[11px] font-bold text-[#8a968f]" onClick={() => setReportDialog(true)}>Reportar</button>
+            </article>
+          ))}
+        </section>
+      </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#143e2a]/10 bg-white/96 px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-4 backdrop-blur-xl">
+        <div className="mx-auto max-w-md">
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <p className="text-xs font-semibold text-[#78877e]">{selectedHours.length ? `${selectedHours.length} h${court.deposit ? ` · Anticipo $${advance.toLocaleString("es-CO")}` : ""}` : "Selecciona una hora"}</p>
+              <p className="mt-0.5 text-2xl font-extrabold tracking-[-0.04em]">${total.toLocaleString("es-CO")} <span className="text-xs font-semibold text-[#78877e]">total</span></p>
+            </div>
+            <p className="text-xs font-bold text-[#438158]">${court.price.toLocaleString("es-CO")}/h</p>
+          </div>
+          <button className="w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(23,78,50,.2)] disabled:cursor-not-allowed disabled:opacity-35" disabled={!canBook} onClick={reserve}>Reservar</button>
+        </div>
+      </div>
+
+      {notice && (
+        <div className="fixed left-1/2 top-24 z-50 w-[calc(100%-2.5rem)] max-w-sm -translate-x-1/2 rounded-2xl bg-[#11251b] px-5 py-4 text-center text-sm font-bold text-white shadow-2xl">
+          {notice}
+        </div>
+      )}
+
+      {advanceDialog && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#071b10]/55 px-0 backdrop-blur-[2px] sm:items-center sm:px-5">
+          <div className="w-full max-w-sm rounded-t-[28px] bg-white px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:rounded-[28px] sm:pb-6">
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6] sm:hidden" />
+            <span className="mt-5 grid size-14 place-items-center rounded-2xl bg-[#fff2cd] text-2xl sm:mt-0">!</span>
+            <h2 className="mt-5 text-2xl font-extrabold leading-tight tracking-[-0.04em]">Esta reserva requiere anticipo</h2>
+            <p className="mt-3 text-sm leading-relaxed text-[#66756c]">
+              Para asegurar el horario debes transferir <strong className="text-[#11251b]">${advance.toLocaleString("es-CO")}</strong>, equivalente al {court.deposit} % del total.
+            </p>
+            <div className="mt-5 rounded-2xl bg-[#f2f5ee] p-4">
+              <div className="flex justify-between text-sm"><span className="text-[#6c7b72]">Reserva</span><strong>{selectedHours.length} h</strong></div>
+              <div className="mt-2 flex justify-between text-sm"><span className="text-[#6c7b72]">Total</span><strong>${total.toLocaleString("es-CO")}</strong></div>
+            </div>
+            <p className="mt-4 text-xs leading-relaxed text-[#7d8982]">Tendrás 30 minutos para subir el comprobante o las horas se liberarán automáticamente.</p>
+            <button
+              className="mt-6 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white"
+              onClick={() => onContinue({
+                court,
+                dateLabel: `${days[dayIndex].day} ${days[dayIndex].date} ${days[dayIndex].month}`,
+                hours: selectedHours.length,
+                timeLabel: `${timeSlots[selectedHours[0]].label} – ${timeSlots[selectedHours[selectedHours.length - 1] + 1]?.label ?? "10:00 p. m."}`,
+                total,
+                advance,
+              })}
+            >
+              Pagar anticipo
+            </button>
+            <button className="mt-2 w-full py-3 text-sm font-extrabold text-[#65736b]" onClick={() => setAdvanceDialog(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      {reportDialog && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#071b10]/50">
+          <div className="w-full rounded-t-[28px] bg-white p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6]" />
+            <h2 className="mt-5 text-2xl font-extrabold">Reportar reseña</h2>
+            <p className="mt-2 text-sm text-[#66756c]">Cuéntanos por qué esta reseña debería revisarse.</p>
+            <div className="mt-5 space-y-2">{["Lenguaje ofensivo", "Información falsa", "Contenido no relacionado", "Otro motivo"].map((reason) => <button className="w-full rounded-xl border border-[#143e2a]/10 px-4 py-3 text-left text-sm font-bold" key={reason} onClick={() => setReportDialog(false)}>{reason}</button>)}</div>
+            <button className="mt-3 w-full py-3 text-sm font-bold text-[#65736b]" onClick={() => setReportDialog(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaymentScreen({
+  booking,
+  onBack,
+  onReservations,
+}: {
+  booking: BookingDraft;
+  onBack: () => void;
+  onReservations: () => void;
+}) {
+  const [proof, setProof] = useState("");
+  const [status, setStatus] = useState<"pending" | "review">("pending");
+  const [copied, setCopied] = useState(false);
+  const accountNumber = "300 456 7890";
+
+  function copyAccount() {
+    navigator.clipboard?.writeText(accountNumber);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2200);
+  }
+
+  if (status === "review") {
+    return (
+      <main className="min-h-screen bg-[#f4f5ec] px-5 pb-8 pt-[max(24px,env(safe-area-inset-top))] text-[#11251b]">
+        <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md flex-col">
+          <button aria-label="Volver" className="grid size-11 place-items-center rounded-full border border-[#143e2a]/10 bg-white text-[#174e32]" onClick={onBack}>
+            <span className="rotate-180"><Icon name="chevron" /></span>
+          </button>
+          <div className="flex flex-1 flex-col items-center justify-center pb-14 text-center">
+            <span className="grid size-24 place-items-center rounded-full bg-[#d9ff5b] text-4xl font-black text-[#174e32]">✓</span>
+            <p className="mt-8 text-xs font-bold uppercase tracking-[0.13em] text-[#438158]">Pago en revisión</p>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-[-0.045em]">Comprobante enviado</h1>
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-[#68776e]">El dueño revisará tu comprobante. Te avisaremos cuando la reserva quede confirmada.</p>
+            <div className="mt-7 w-full rounded-[22px] border border-[#143e2a]/10 bg-white p-5 text-left">
+              <p className="text-sm font-extrabold">{booking.court.name}</p>
+              <p className="mt-1 text-xs font-semibold text-[#78877e]">{booking.dateLabel} · {booking.timeLabel}</p>
+              <div className="mt-4 flex items-center justify-between border-t border-[#143e2a]/8 pt-4">
+                <span className="text-xs font-semibold text-[#78877e]">Anticipo enviado</span>
+                <strong className="text-lg">${booking.advance.toLocaleString("es-CO")}</strong>
+              </div>
+            </div>
+            <button className="mt-7 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white" onClick={onReservations}>Ver mis reservas</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f4f5ec] pb-32 text-[#11251b]">
+      <header className="sticky top-0 z-30 border-b border-[#143e2a]/10 bg-[#f4f5ec]/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-md items-center gap-4 px-5 pb-4 pt-[max(16px,env(safe-area-inset-top))]">
+          <button aria-label="Volver al detalle" className="grid size-10 place-items-center rounded-full border border-[#143e2a]/10 bg-white text-[#174e32]" onClick={onBack}>
+            <span className="rotate-180"><Icon name="chevron" /></span>
+          </button>
+          <div>
+            <p className="text-xs font-bold text-[#438158]">Paso final</p>
+            <h1 className="text-lg font-extrabold tracking-[-0.03em]">Pagar anticipo</h1>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-md px-5 py-6">
+        <div className="rounded-[22px] bg-[#174e32] p-5 text-white shadow-[0_16px_36px_rgba(23,78,50,.18)]">
+          <div className="flex justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-white/60">Total de la reserva</p>
+              <p className="mt-1 text-xl font-extrabold">${booking.total.toLocaleString("es-CO")}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-semibold text-white/60">Anticipo a pagar</p>
+              <p className="mt-1 text-2xl font-extrabold text-[#d9ff5b]">${booking.advance.toLocaleString("es-CO")}</p>
+            </div>
+          </div>
+          <div className="mt-5 border-t border-white/15 pt-4">
+            <p className="text-sm font-bold">{booking.court.name}</p>
+            <p className="mt-1 text-xs font-medium text-white/65">{booking.dateLabel} · {booking.timeLabel}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-[#e4cd82] bg-[#fff6d9] px-4 py-3 text-[#725815]">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f6df91] text-sm font-extrabold"><Icon name="clock" size={17} /></span>
+          <div>
+            <p className="text-xs font-extrabold">Tu horario está reservado por 30 minutos</p>
+            <p className="mt-0.5 text-[11px] font-semibold opacity-75">Tiempo restante: 29:42</p>
+          </div>
+        </div>
+
+        <section className="mt-7">
+          <p className="text-xs font-bold uppercase tracking-[0.13em] text-[#438158]">1. Transfiere el anticipo</p>
+          <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Cuenta del dueño</h2>
+          <div className="mt-4 rounded-[22px] border border-[#143e2a]/10 bg-white p-5">
+            <div className="flex items-center justify-between">
+              <span className="rounded-full bg-[#f2e4ff] px-3 py-1.5 text-xs font-extrabold text-[#6f2b91]">Nequi</span>
+              <span className="text-xs font-semibold text-[#78877e]">Cuenta de cobro</span>
+            </div>
+            <p className="mt-5 text-xs font-semibold text-[#78877e]">Número</p>
+            <div className="mt-1 flex items-center justify-between gap-4">
+              <p className="text-2xl font-extrabold tracking-[-0.03em]">{accountNumber}</p>
+              <button className="flex items-center gap-2 rounded-xl bg-[#edf3e9] px-3 py-2.5 text-xs font-extrabold text-[#174e32]" onClick={copyAccount}>
+                <Icon name="copy" size={16} />
+                {copied ? "Copiado" : "Copiar"}
+              </button>
+            </div>
+            <div className="mt-4 border-t border-[#143e2a]/8 pt-4">
+              <p className="text-xs font-semibold text-[#78877e]">Titular</p>
+              <p className="mt-1 text-sm font-extrabold">Carlos Rodríguez</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-7">
+          <p className="text-xs font-bold uppercase tracking-[0.13em] text-[#438158]">2. Sube la captura</p>
+          <h2 className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Comprobante de pago</h2>
+          <p className="mt-2 text-xs leading-relaxed text-[#78877e]">Puedes elegir una imagen de tu galería o tomar una foto.</p>
+          <label className={`mt-4 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-[22px] border-2 border-dashed p-5 text-center transition ${proof ? "border-[#438158] bg-[#eef5ea]" : "border-[#174e32]/20 bg-white"}`}>
+            <input
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => setProof(event.target.files?.[0]?.name ?? "")}
+              type="file"
+            />
+            <span className="grid size-11 place-items-center rounded-2xl bg-[#e2efdd] text-[#174e32]"><Icon name="upload" size={21} /></span>
+            <p className="mt-3 text-sm font-extrabold">{proof || "Subir comprobante"}</p>
+            <p className="mt-1 text-[11px] font-semibold text-[#88938d]">{proof ? "Toca para cambiar la imagen" : "JPG, PNG o foto de cámara"}</p>
+          </label>
+        </section>
+      </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#143e2a]/10 bg-white/96 px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-4 backdrop-blur-xl">
+        <div className="mx-auto max-w-md">
+          <button className="w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white disabled:opacity-35" disabled={!proof} onClick={() => setStatus("review")}>Enviar comprobante</button>
+          <button className="mt-1 w-full py-2.5 text-xs font-extrabold text-[#65736b]" onClick={onReservations}>Pagar más tarde</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type AppRole = "player" | "owner" | "admin";
+
+type AppScreen =
+  | "splash" | "login" | "register" | "recover" | "new-password" | "verify"
+  | "courts" | "detail" | "payment" | "player-reservations" | "notifications" | "profile"
+  | "owner-reservations" | "owner-payments" | "owner-courts" | "new-court" | "manage-court" | "stats"
+  | "admin-payments" | "admin-courts" | "admin-users" | "admin-reviews" | "admin-summary";
+
+const roleTabs: Record<AppRole, { label: string; icon: IconName; screen: AppScreen }[]> = {
+  player: [
+    { label: "Canchas", icon: "home", screen: "courts" },
+    { label: "Reservas", icon: "calendar", screen: "player-reservations" },
+    { label: "Avisos", icon: "heart", screen: "notifications" },
+    { label: "Perfil", icon: "user", screen: "profile" },
+  ],
+  owner: [
+    { label: "Reservas", icon: "calendar", screen: "owner-reservations" },
+    { label: "Pagos", icon: "upload", screen: "owner-payments" },
+    { label: "Canchas", icon: "map", screen: "owner-courts" },
+    { label: "Avisos", icon: "heart", screen: "notifications" },
+    { label: "Perfil", icon: "user", screen: "profile" },
+  ],
+  admin: [
+    { label: "Pagos", icon: "upload", screen: "admin-payments" },
+    { label: "Canchas", icon: "map", screen: "admin-courts" },
+    { label: "Usuarios", icon: "user", screen: "admin-users" },
+    { label: "Reseñas", icon: "star", screen: "admin-reviews" },
+    { label: "Resumen", icon: "home", screen: "admin-summary" },
+  ],
+};
+
+function BottomNavigation({
+  active,
+  goTo,
+  role,
+}: {
+  active: AppScreen;
+  goTo: (screen: AppScreen) => void;
+  role: AppRole;
+}) {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#143e2a]/10 bg-white/96 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-md items-end justify-around">
+        {roleTabs[role].map((tab) => {
+          const selected = active === tab.screen;
+          return (
+            <button className={`flex min-w-14 flex-col items-center gap-1 text-[10px] font-bold ${selected ? "text-[#174e32]" : "text-[#8a968f]"}`} key={tab.label} onClick={() => goTo(tab.screen)}>
+              <span className={selected ? "rounded-xl bg-[#d9ff5b] px-3 py-1.5" : "px-3 py-1.5"}><Icon name={tab.icon} size={18} /></span>
+              {tab.label}
+              {tab.label === "Avisos" && <span className="absolute ml-7 size-4 rounded-full bg-[#d23b34] text-[9px] leading-4 text-white">3</span>}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function MobilePage({
+  active,
+  children,
+  goTo,
+  role,
+  subtitle,
+  title,
+  back,
+}: {
+  active: AppScreen;
+  children: React.ReactNode;
+  goTo: (screen: AppScreen) => void;
+  role: AppRole;
+  subtitle?: string;
+  title: string;
+  back?: AppScreen;
+}) {
+  return (
+    <div className="min-h-screen bg-[#f4f5ec] pb-28 text-[#11251b]">
+      <header className="sticky top-0 z-30 border-b border-[#143e2a]/8 bg-[#f4f5ec]/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-md items-center justify-between px-5 pb-4 pt-[max(16px,env(safe-area-inset-top))]">
+          <div className="flex items-center gap-3">
+            {back && (
+              <button className="grid size-10 place-items-center rounded-full bg-white text-[#174e32] shadow-sm" onClick={() => goTo(back)}>
+                <span className="rotate-180"><Icon name="chevron" /></span>
+              </button>
+            )}
+            <div>
+              {subtitle && <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#438158]">{subtitle}</p>}
+              <h1 className="text-2xl font-extrabold tracking-[-0.04em]">{title}</h1>
+            </div>
+          </div>
+          {role === "admin" && (
+            <div className="flex gap-2">
+              <button className="relative grid size-10 place-items-center rounded-full bg-white text-[#174e32]" onClick={() => goTo("notifications")}>
+                <Icon name="heart" size={19} /><span className="absolute right-0 top-0 grid size-4 place-items-center rounded-full bg-[#d23b34] text-[9px] font-bold text-white">3</span>
+              </button>
+              <button className="grid size-10 place-items-center rounded-full bg-[#174e32] text-white" onClick={() => goTo("profile")}><Icon name="user" size={18} /></button>
+            </div>
+          )}
+        </div>
+      </header>
+      <main className="mx-auto max-w-md px-5 py-5">{children}</main>
+      {!back && <BottomNavigation active={active} goTo={goTo} role={role} />}
+    </div>
+  );
+}
+
+function PlayerReservations({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [group, setGroup] = useState<"upcoming" | "past">("upcoming");
+  const [dialog, setDialog] = useState<"cancel" | "review" | null>(null);
+  const [stars, setStars] = useState(0);
+  const reservations = group === "upcoming"
+    ? [
+        { court: "La Bombonera 5", date: "Hoy · 6:00 p. m. – 8:00 p. m.", total: "$180.000", advance: "$54.000", status: "Confirmada", color: "bg-[#dff2dd] text-[#23653a]", action: "" },
+        { court: "Golazo Arena", date: "Sáb 22 · 8:00 p. m. – 9:00 p. m.", total: "$70.000", advance: "$14.000", status: "Pendiente de pago", color: "bg-[#fff0c7] text-[#7a5b0b]", action: "Pagar anticipo" },
+      ]
+    : [
+        { court: "Distrito Fútbol", date: "10 may · 5:00 p. m. – 6:00 p. m.", total: "$75.000", advance: "$0", status: "Completada", color: "bg-[#e8ece9] text-[#5f7066]", action: "Calificar" },
+        { court: "Cancha El Potrero", date: "2 may · 7:00 p. m. – 8:00 p. m.", total: "$80.000", advance: "$24.000", status: "Cancelada", color: "bg-[#f8dfdc] text-[#a43730]", action: "" },
+      ];
+  return (
+    <MobilePage active="player-reservations" goTo={goTo} role="player" subtitle="Tu agenda" title="Mis reservas">
+      <div className="grid grid-cols-2 rounded-2xl bg-[#e7ebe5] p-1">
+        {(["upcoming", "past"] as const).map((item) => <button className={`rounded-xl py-2.5 text-sm font-extrabold ${group === item ? "bg-white text-[#174e32] shadow-sm" : "text-[#718078]"}`} key={item} onClick={() => setGroup(item)}>{item === "upcoming" ? "Próximas" : "Anteriores"}</button>)}
+      </div>
+      <div className="mt-5 space-y-4">
+        {reservations.map((reservation) => (
+          <article className="rounded-[22px] border border-[#143e2a]/10 bg-white p-5 shadow-[0_8px_24px_rgba(19,53,36,.06)]" key={reservation.court}>
+            <div className="flex items-start justify-between gap-3">
+              <div><h2 className="font-extrabold">{reservation.court}</h2><p className="mt-1 text-xs font-semibold text-[#748179]">{reservation.date}</p></div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${reservation.color}`}>{reservation.status}</span>
+            </div>
+            <div className="mt-4 flex justify-between rounded-xl bg-[#f5f6f1] p-3 text-xs"><span className="text-[#748179]">Total <strong className="ml-1 text-[#11251b]">{reservation.total}</strong></span><span className="text-[#748179]">Anticipo <strong className="ml-1 text-[#11251b]">{reservation.advance}</strong></span></div>
+            {reservation.court === "La Bombonera 5" && <p className="mt-3 rounded-lg bg-[#fff1cd] px-3 py-2 text-[10px] font-bold text-[#755912]">Reserva de último momento · Sin cancelación</p>}
+            <div className="mt-4 flex gap-2">
+              {group === "upcoming" && reservation.court !== "La Bombonera 5" && <button className="flex-1 rounded-xl border border-[#b13c35]/20 py-3 text-xs font-extrabold text-[#b13c35]" onClick={() => setDialog("cancel")}>Cancelar</button>}
+              {reservation.action && <button className="flex-1 rounded-xl bg-[#174e32] py-3 text-xs font-extrabold text-white" onClick={() => reservation.action === "Calificar" && setDialog("review")}>{reservation.action}</button>}
+            </div>
+          </article>
+        ))}
+      </div>
+      {dialog && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#071b10]/50">
+          <div className="w-full rounded-t-[28px] bg-white p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6]" />
+            {dialog === "cancel" ? (
+              <>
+                <h2 className="mt-5 text-2xl font-extrabold">¿Cancelar la reserva?</h2>
+                <p className="mt-2 text-sm leading-relaxed text-[#66756c]">Como faltan más de 24 horas, puedes cancelar sin costo. El anticipo se coordina directamente con el dueño.</p>
+                <button className="mt-6 w-full rounded-2xl bg-[#b13c35] py-4 text-sm font-extrabold text-white" onClick={() => setDialog(null)}>Sí, cancelar reserva</button>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-5 text-2xl font-extrabold">Califica la cancha</h2>
+                <p className="mt-2 text-sm text-[#66756c]">¿Cómo estuvo tu partido en Distrito Fútbol?</p>
+                <div className="my-6 flex justify-center gap-2">{[1, 2, 3, 4, 5].map((value) => <button className={value <= stars ? "text-[#f3b61f]" : "text-[#d5dbd6]"} key={value} onClick={() => setStars(value)}><Icon name="star" size={34} filled /></button>)}</div>
+                <textarea className="h-24 w-full resize-none rounded-2xl border border-[#143e2a]/10 p-4 text-sm outline-none focus:border-[#438158]" placeholder="Comentario opcional" />
+                <button className="mt-4 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white disabled:opacity-35" disabled={!stars} onClick={() => setDialog(null)}>Publicar reseña</button>
+              </>
+            )}
+            <button className="mt-2 w-full py-3 text-sm font-bold text-[#65736b]" onClick={() => setDialog(null)}>Volver</button>
+          </div>
+        </div>
+      )}
+    </MobilePage>
+  );
+}
+
+function NotificationsScreen({ goTo, role }: { goTo: (screen: AppScreen) => void; role: AppRole }) {
+  const [read, setRead] = useState(false);
+  const notices = role === "owner"
+    ? [["Nuevo pago por revisar", "Laura subió el comprobante para La Bombonera 5.", "Hace 5 min"], ["Reserva nueva", "Andrés reservó hoy de 8:00 p. m. a 9:00 p. m.", "Hace 1 h"], ["Mensualidad por vencer", "Tu mensualidad vence en 3 días.", "Ayer"]]
+    : [["Reserva confirmada", "El dueño aprobó tu pago en La Bombonera 5.", "Hace 10 min"], ["Tu partido es pronto", "Tu reserva comienza en 2 horas.", "Hoy · 4:00 p. m."], ["Pago rechazado", "Revisa el motivo y sube otro comprobante.", "Ayer"]];
+  return (
+    <MobilePage active="notifications" goTo={goTo} role={role} subtitle="Mantente al día" title="Avisos">
+      <div className="flex justify-end"><button className="text-xs font-extrabold text-[#286a42]" onClick={() => setRead(true)}>Marcar leídas</button></div>
+      <div className="mt-3 overflow-hidden rounded-[22px] border border-[#143e2a]/10 bg-white">
+        {notices.map((notice, index) => (
+          <article className="relative border-b border-[#143e2a]/8 p-5 last:border-0" key={notice[0]}>
+            {!read && index < 2 && <span className="absolute right-4 top-5 size-2.5 rounded-full bg-[#d23b34]" />}
+            <h2 className="pr-5 text-sm font-extrabold">{notice[0]}</h2>
+            <p className="mt-1 pr-4 text-xs leading-relaxed text-[#65736b]">{notice[1]}</p>
+            <p className="mt-2 text-[10px] font-bold text-[#96a099]">{notice[2]}</p>
+          </article>
+        ))}
+      </div>
+    </MobilePage>
+  );
+}
+
+function ProfileScreen({
+  goTo,
+  onRole,
+  role,
+}: {
+  goTo: (screen: AppScreen) => void;
+  onRole: (role: AppRole) => void;
+  role: AppRole;
+}) {
+  const [accountDialog, setAccountDialog] = useState<"name" | "password" | "delete" | null>(null);
+  return (
+    <MobilePage active="profile" goTo={goTo} role={role} subtitle="Tu cuenta" title="Perfil">
+      <div className="flex items-center gap-4 rounded-[22px] bg-[#174e32] p-5 text-white">
+        <span className="grid size-14 place-items-center rounded-full bg-[#d9ff5b] text-xl font-extrabold text-[#174e32]">AM</span>
+        <div><h2 className="text-lg font-extrabold">Alejandro Martínez</h2><p className="mt-0.5 text-xs text-white/65">{role === "player" ? "Jugador" : role === "owner" ? "Dueño de cancha" : "Administrador"}</p></div>
+      </div>
+      <section className="mt-5 overflow-hidden rounded-[22px] border border-[#143e2a]/10 bg-white">
+        {[["Nombre", "Alejandro Martínez"], ["Correo", "alejandro@correo.com"], ["Celular", "300 123 4567"]].map((row, index) => (
+          <button className="flex w-full items-center justify-between border-b border-[#143e2a]/8 p-4 text-left last:border-0" key={row[0]} onClick={() => index === 0 && setAccountDialog("name")}>
+            <span><span className="block text-[11px] font-semibold text-[#849088]">{row[0]}</span><span className="mt-1 block text-sm font-extrabold">{row[1]}</span></span>
+            {index === 1 ? <span className="rounded-full bg-[#dff2dd] px-2.5 py-1 text-[10px] font-extrabold text-[#23653a]">Confirmado</span> : <Icon name="chevron" size={15} />}
+          </button>
+        ))}
+      </section>
+      <button className="mt-4 flex w-full items-center justify-between rounded-2xl bg-white p-4 text-sm font-extrabold" onClick={() => setAccountDialog("password")}><span className="flex items-center gap-3"><Icon name="lock" />Cambiar contraseña</span><Icon name="chevron" size={15} /></button>
+      <div className="mt-7">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8a968f]">Vista del prototipo</p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {(["player", "owner", "admin"] as AppRole[]).map((item) => <button className={`rounded-xl border py-3 text-xs font-extrabold ${role === item ? "border-[#174e32] bg-[#e4f1df] text-[#174e32]" : "border-[#143e2a]/10 bg-white text-[#65736b]"}`} key={item} onClick={() => onRole(item)}>{item === "player" ? "Jugador" : item === "owner" ? "Dueño" : "Admin"}</button>)}
+        </div>
+      </div>
+      <button className="mt-7 w-full rounded-2xl border border-[#143e2a]/12 bg-white py-3.5 text-sm font-extrabold text-[#174e32]" onClick={() => goTo("login")}>Cerrar sesión</button>
+      <button className="mt-3 w-full py-3 text-xs font-extrabold text-[#b13c35]" onClick={() => setAccountDialog("delete")}>Borrar mi cuenta</button>
+      {accountDialog && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#071b10]/50">
+          <div className="w-full rounded-t-[28px] bg-white p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6]" />
+            <h2 className="mt-5 text-2xl font-extrabold">{accountDialog === "name" ? "Cambiar nombre" : accountDialog === "password" ? "Cambiar contraseña" : "Borrar mi cuenta"}</h2>
+            {accountDialog === "name" && <div className="mt-5"><Field icon="user" label="Nombre completo" onChange={() => {}} placeholder="Alejandro Martínez" value="" /></div>}
+            {accountDialog === "password" && <div className="mt-5 space-y-4"><Field icon="lock" label="Contraseña actual" onChange={() => {}} placeholder="Contraseña actual" type="password" value="" /><Field icon="lock" label="Contraseña nueva" onChange={() => {}} placeholder="Mínimo 8 caracteres" type="password" value="" /></div>}
+            {accountDialog === "delete" && <><p className="mt-3 text-sm leading-relaxed text-[#66756c]">Esta acción es permanente. Escribe tu contraseña para confirmar que deseas eliminar todos tus datos.</p><div className="mt-5"><Field icon="lock" label="Contraseña" onChange={() => {}} placeholder="Tu contraseña" type="password" value="" /></div></>}
+            <button className={`mt-6 w-full rounded-2xl py-4 text-sm font-extrabold text-white ${accountDialog === "delete" ? "bg-[#b13c35]" : "bg-[#174e32]"}`} onClick={() => setAccountDialog(null)}>{accountDialog === "delete" ? "Eliminar definitivamente" : "Guardar cambios"}</button>
+            <button className="mt-2 w-full py-3 text-sm font-bold text-[#65736b]" onClick={() => setAccountDialog(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </MobilePage>
+  );
+}
+
+function OwnerReservations({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [blocking, setBlocking] = useState(false);
+  const days = ["Hoy 18", "Lun 19", "Mar 20", "Mié 21", "Jue 22"];
+  return (
+    <MobilePage active="owner-reservations" goTo={goTo} role="owner" subtitle="Próximos 14 días" title="Reservas">
+      <button className="flex w-full items-center justify-between rounded-2xl border border-[#143e2a]/10 bg-white px-4 py-3 text-sm font-extrabold"><span>Todas las canchas</span><span className="rotate-90"><Icon name="chevron" size={15} /></span></button>
+      <div className="no-scrollbar -mx-5 mt-4 flex gap-2 overflow-x-auto px-5">{days.map((day, index) => <button className={`shrink-0 rounded-xl px-4 py-2.5 text-xs font-extrabold ${index === 0 ? "bg-[#174e32] text-white" : "bg-white text-[#65736b]"}`} key={day}>{day}</button>)}</div>
+      <div className="mt-5">
+        <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#438158]">Hoy · 18 de mayo</p>
+        {[["6:00 p. m.", "La Bombonera 5", "Laura Méndez", "300 456 7821", "Confirmada"], ["8:00 p. m.", "Golazo Arena", "Andrés Pérez", "315 222 1060", "En revisión"], ["9:00 p. m.", "La Bombonera 5", "Bloqueo externo", "Partido de empresa", "Bloqueada"]].map((row) => (
+          <article className="mb-3 rounded-[20px] border border-[#143e2a]/10 bg-white p-4" key={`${row[0]}${row[1]}`}>
+            <div className="flex justify-between gap-3"><div><p className="text-sm font-extrabold">{row[0]} · {row[1]}</p><p className="mt-1 text-xs font-semibold text-[#6c7b72]">{row[2]} · <button className="text-[#286a42]">{row[3]}</button></p></div><span className="h-fit rounded-full bg-[#e5f1df] px-2 py-1 text-[9px] font-extrabold text-[#285e3c]">{row[4]}</span></div>
+            {row[4] === "Bloqueada" && <button className="mt-3 text-xs font-extrabold text-[#ad3e37]">Quitar bloqueo</button>}
+          </article>
+        ))}
+      </div>
+      <button className="fixed bottom-24 right-5 z-30 flex items-center gap-2 rounded-2xl bg-[#d9ff5b] px-5 py-3.5 text-sm font-extrabold text-[#11251b] shadow-xl" onClick={() => setBlocking(true)}>+ Bloquear horas</button>
+      {blocking && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#071b10]/50">
+          <div className="w-full rounded-t-[28px] bg-white p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6]" /><h2 className="mt-5 text-2xl font-extrabold">Bloquear horas</h2><p className="mt-1 text-xs text-[#78877e]">Para reservas que llegan por fuera de la app.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3"><button className="rounded-xl border border-[#143e2a]/10 p-3 text-left text-xs font-bold">Cancha<br /><strong>La Bombonera</strong></button><button className="rounded-xl border border-[#143e2a]/10 p-3 text-left text-xs font-bold">Día<br /><strong>Hoy, 18 may</strong></button><button className="rounded-xl border border-[#143e2a]/10 p-3 text-left text-xs font-bold">Desde<br /><strong>7:00 p. m.</strong></button><button className="rounded-xl border border-[#143e2a]/10 p-3 text-left text-xs font-bold">Duración<br /><strong>2 horas</strong></button></div>
+            <button className="mt-5 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white" onClick={() => setBlocking(false)}>Guardar bloqueo</button><button className="mt-2 w-full py-3 text-sm font-bold text-[#65736b]" onClick={() => setBlocking(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </MobilePage>
+  );
+}
+
+function OwnerPayments({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [tab, setTab] = useState<"review" | "history">("review");
+  const [resolved, setResolved] = useState<string[]>([]);
+  const payments = [["Laura Méndez", "La Bombonera 5", "$54.000", "Hoy · 6:00 p. m."], ["Andrés Pérez", "Golazo Arena", "$14.000", "Sáb 22 · 8:00 p. m."]];
+  return (
+    <MobilePage active="owner-payments" goTo={goTo} role="owner" subtitle="Anticipos" title="Pagos">
+      <div className="grid grid-cols-2 rounded-2xl bg-[#e7ebe5] p-1">{[["review", "Por revisar"], ["history", "Historial"]].map((item) => <button className={`rounded-xl py-2.5 text-sm font-extrabold ${tab === item[0] ? "bg-white text-[#174e32] shadow-sm" : "text-[#718078]"}`} key={item[0]} onClick={() => setTab(item[0] as "review" | "history")}>{item[1]}</button>)}</div>
+      <div className="mt-5 space-y-4">
+        {(tab === "review" ? payments.filter((item) => !resolved.includes(item[0])) : payments.filter((item) => resolved.includes(item[0]))).map((payment) => (
+          <article className="rounded-[22px] border border-[#143e2a]/10 bg-white p-5" key={payment[0]}>
+            <div className="flex gap-4"><span className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#e6eee2] text-xs font-extrabold text-[#174e32]">RECIBO</span><div><h2 className="text-sm font-extrabold">{payment[0]}</h2><p className="mt-1 text-xs text-[#6c7b72]">{payment[1]} · {payment[3]}</p><p className="mt-2 text-lg font-extrabold">{payment[2]}</p></div></div>
+            {tab === "review" && <div className="mt-4 grid grid-cols-2 gap-2"><button className="rounded-xl border border-[#b13c35]/20 py-3 text-xs font-extrabold text-[#b13c35]" onClick={() => setResolved([...resolved, payment[0]])}>Rechazar</button><button className="rounded-xl bg-[#174e32] py-3 text-xs font-extrabold text-white" onClick={() => setResolved([...resolved, payment[0]])}>Aprobar</button></div>}
+          </article>
+        ))}
+      </div>
+    </MobilePage>
+  );
+}
+
+function OwnerCourts({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  return (
+    <MobilePage active="owner-courts" goTo={goTo} role="owner" subtitle="Tu negocio" title="Mis canchas">
+      <button className="mb-5 flex w-full items-center justify-between rounded-2xl bg-[#174e32] p-4 text-left text-white" onClick={() => goTo("stats")}><span><span className="block text-xs text-white/60">Rendimiento</span><strong className="mt-1 block">Ver estadísticas</strong></span><Icon name="chevron" /></button>
+      {[courts[0], courts[1]].map((court, index) => <article className="mb-4 overflow-hidden rounded-[22px] border border-[#143e2a]/10 bg-white" key={court.id}><div className="flex"><img alt={court.name} className="h-28 w-28 object-cover" src={court.image} /><div className="min-w-0 flex-1 p-4"><div className="flex justify-between"><h2 className="truncate text-sm font-extrabold">{court.name}</h2><span className={`ml-2 size-2.5 shrink-0 rounded-full ${index ? "bg-[#e1a72d]" : "bg-[#48a35f]"}`} /></div><p className="mt-1 text-xs text-[#6c7b72]">{court.city} · ${court.price.toLocaleString("es-CO")}/h</p><p className={`mt-3 text-[10px] font-extrabold ${index ? "text-[#9a6900]" : "text-[#2c7743]"}`}>{index ? "Mensualidad pendiente" : "Activa"}</p></div></div><button className="w-full border-t border-[#143e2a]/8 py-3 text-xs font-extrabold text-[#174e32]" onClick={() => goTo("manage-court")}>Administrar cancha</button></article>)}
+      <button className="fixed bottom-24 right-5 z-30 rounded-2xl bg-[#d9ff5b] px-5 py-3.5 text-sm font-extrabold shadow-xl" onClick={() => goTo("new-court")}>+ Nueva cancha</button>
+    </MobilePage>
+  );
+}
+
+function CourtFormScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [covered, setCovered] = useState(true); const [deposit, setDeposit] = useState(true);
+  return (
+    <MobilePage active="new-court" back="owner-courts" goTo={goTo} role="owner" subtitle="Nueva" title="Crear cancha">
+      <div className="space-y-4">
+        <Field icon="home" label="Nombre" onChange={() => {}} placeholder="Nombre de la cancha" value="" />
+        <Field icon="location" label="Ciudad" onChange={() => {}} placeholder="Selecciona una ciudad" value="" />
+        <Field icon="map" label="Dirección" onChange={() => {}} placeholder="Calle, número y barrio" value="" />
+        <button className="w-full rounded-2xl border border-[#174e32]/15 bg-[#e8f2e4] py-3.5 text-sm font-extrabold text-[#174e32]"><span className="inline-flex items-center gap-2"><Icon name="location" size={17} />Usar mi ubicación actual</span></button>
+        <Field icon="copy" label="Precio por hora (COP)" onChange={() => {}} placeholder="$90.000" value="" />
+        <div className="grid grid-cols-2 gap-3"><Field icon="clock" label="Abre" onChange={() => {}} placeholder="8:00 a. m." value="" /><Field icon="clock" label="Cierra" onChange={() => {}} placeholder="10:00 p. m." value="" /></div>
+        {[["Cancha techada", covered, setCovered], ["Exigir anticipo", deposit, setDeposit]].map(([label, value, setter]) => <button className="flex w-full items-center justify-between rounded-2xl border border-[#143e2a]/10 bg-white p-4 text-sm font-extrabold" key={label as string} onClick={() => (setter as React.Dispatch<React.SetStateAction<boolean>>)(!(value as boolean))}><span>{label as string}</span><span className={`relative h-7 w-12 rounded-full ${value ? "bg-[#174e32]" : "bg-[#d8ddd8]"}`}><span className={`absolute top-1 size-5 rounded-full bg-white transition ${value ? "left-6" : "left-1"}`} /></span></button>)}
+        {deposit && <button className="w-full rounded-2xl border border-[#143e2a]/10 bg-white p-4 text-left text-sm font-bold">Porcentaje de anticipo <strong className="float-right">30 %</strong></button>}
+        <button className="w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white" onClick={() => goTo("owner-courts")}>Crear cancha</button>
+      </div>
+    </MobilePage>
+  );
+}
+
+function ManageCourtScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [paused, setPaused] = useState(false);
+  const [manageDialog, setManageDialog] = useState<"account" | "monthly" | null>(null);
+  return (
+    <MobilePage active="manage-court" back="owner-courts" goTo={goTo} role="owner" subtitle="Administrar" title="La Bombonera 5">
+      <section><h2 className="text-sm font-extrabold">Fotos</h2><div className="mt-3 grid grid-cols-3 gap-2">{galleryImages.slice(0, 2).map((image) => <img alt="Cancha" className="aspect-square rounded-xl object-cover" key={image} src={image} />)}<button className="aspect-square rounded-xl border-2 border-dashed border-[#174e32]/20 text-2xl font-light text-[#174e32]">+</button></div></section>
+      <section className="mt-6 rounded-[22px] bg-white p-5"><h2 className="font-extrabold">Datos de la cancha</h2><p className="mt-2 text-xs leading-relaxed text-[#6c7b72]">Nombre, dirección, descripción, precio, horarios y política de anticipo.</p><button className="mt-4 text-xs font-extrabold text-[#286a42]">Editar datos</button></section>
+      <section className="mt-4 rounded-[22px] bg-white p-5"><div className="flex items-center justify-between"><div><h2 className="font-extrabold">Estado</h2><p className="mt-1 text-xs text-[#6c7b72]">{paused ? "Oculta en el buscador" : "Activa y visible"}</p></div><button className={`relative h-7 w-12 rounded-full ${paused ? "bg-[#d8ddd8]" : "bg-[#174e32]"}`} onClick={() => setPaused(!paused)}><span className={`absolute top-1 size-5 rounded-full bg-white ${paused ? "left-1" : "left-6"}`} /></button></div></section>
+      <section className="mt-4 rounded-[22px] bg-white p-5"><div className="flex justify-between"><div><h2 className="font-extrabold">Cuentas para pagos</h2><p className="mt-1 text-xs text-[#6c7b72]">Nequi · 300 456 7890</p></div><button className="text-xs font-extrabold text-[#286a42]" onClick={() => setManageDialog("account")}>Agregar</button></div></section>
+      <section className="mt-4 rounded-[22px] border border-[#dfc974] bg-[#fff7dc] p-5"><span className="rounded-full bg-[#f0d980] px-2.5 py-1 text-[10px] font-extrabold text-[#725815]">Vence en 3 días</span><h2 className="mt-3 font-extrabold">Mensualidad · $100.000</h2><p className="mt-1 text-xs leading-relaxed text-[#76683c]">Mantén tu cancha visible durante 30 días.</p><button className="mt-4 w-full rounded-xl bg-[#174e32] py-3 text-xs font-extrabold text-white" onClick={() => setManageDialog("monthly")}>Pagar mensualidad</button></section>
+      {manageDialog && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[#071b10]/50">
+          <div className="w-full rounded-t-[28px] bg-white p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+            <div className="mx-auto h-1 w-10 rounded-full bg-[#d5dbd6]" />
+            <h2 className="mt-5 text-2xl font-extrabold">{manageDialog === "account" ? "Nueva cuenta de cobro" : "Pagar mensualidad"}</h2>
+            {manageDialog === "account" ? <div className="mt-5 space-y-4"><Field icon="copy" label="Medio" onChange={() => {}} placeholder="Nequi, Daviplata o banco" value="" /><Field icon="phone" label="Número de cuenta o celular" onChange={() => {}} placeholder="300 000 0000" value="" /><Field icon="user" label="Titular" onChange={() => {}} placeholder="Nombre del titular" value="" /></div> : <div className="mt-5"><div className="rounded-2xl bg-[#f2f5ee] p-4"><p className="text-xs text-[#6c7b72]">Transfiere a la cuenta de la plataforma</p><p className="mt-2 text-lg font-extrabold">Nequi · 300 999 0011</p><p className="mt-1 text-sm font-bold">$100.000</p></div><label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#174e32]/20 py-5 text-sm font-extrabold text-[#174e32]"><input accept="image/*" className="hidden" type="file" /><Icon name="upload" />Subir comprobante</label></div>}
+            <button className="mt-6 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white" onClick={() => setManageDialog(null)}>{manageDialog === "account" ? "Agregar cuenta" : "Enviar comprobante"}</button>
+            <button className="mt-2 w-full py-3 text-sm font-bold text-[#65736b]" onClick={() => setManageDialog(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </MobilePage>
+  );
+}
+
+function StatsScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const stats = [["Ingresos confirmados", "$1.840.000"], ["Reservas confirmadas", "28"], ["Esperando pago", "4"], ["Canceladas", "3"], ["Horas reservadas", "46 h"], ["Ocupación", "68 %"]];
+  return <MobilePage active="stats" back="owner-courts" goTo={goTo} role="owner" subtitle="Rendimiento" title="Estadísticas"><div className="flex gap-2">{["7 días", "30 días", "90 días"].map((item, index) => <button className={`flex-1 rounded-xl py-2.5 text-xs font-extrabold ${index === 1 ? "bg-[#174e32] text-white" : "bg-white text-[#65736b]"}`} key={item}>{item}</button>)}</div><div className="mt-5 grid grid-cols-2 gap-3">{stats.map((stat, index) => <article className={`rounded-[20px] p-4 ${index === 0 ? "col-span-2 bg-[#174e32] text-white" : "bg-white"}`} key={stat[0]}><p className={`text-[11px] font-semibold ${index === 0 ? "text-white/60" : "text-[#78877e]"}`}>{stat[0]}</p><p className={`mt-3 font-extrabold tracking-[-0.04em] ${index === 0 ? "text-3xl text-[#d9ff5b]" : "text-2xl"}`}>{stat[1]}</p></article>)}</div></MobilePage>;
+}
+
+function AdminScreen({ goTo, screen }: { goTo: (screen: AppScreen) => void; screen: AppScreen }) {
+  const [tab, setTab] = useState("review");
+  const titles: Partial<Record<AppScreen, string>> = { "admin-payments": "Pagos", "admin-courts": "Canchas", "admin-users": "Usuarios", "admin-reviews": "Reseñas", "admin-summary": "Resumen" };
+  return (
+    <MobilePage active={screen} goTo={goTo} role="admin" subtitle="Administración" title={titles[screen] ?? "Panel"}>
+      {screen === "admin-payments" && <><div className="grid grid-cols-2 rounded-2xl bg-[#e7ebe5] p-1">{["review", "history"].map((item) => <button className={`rounded-xl py-2.5 text-xs font-extrabold ${tab === item ? "bg-white shadow-sm" : "text-[#718078]"}`} key={item} onClick={() => setTab(item)}>{item === "review" ? "Por revisar" : "Historial"}</button>)}</div>{[["Carlos Rodríguez", "La Bombonera 5", "$100.000"], ["María López", "Golazo Arena", "$100.000"]].map((item) => <article className="mt-4 rounded-[22px] bg-white p-5" key={item[0]}><span className="rounded-full bg-[#fff0c7] px-2.5 py-1 text-[10px] font-extrabold text-[#795a0b]">Mensualidad</span><h2 className="mt-3 text-sm font-extrabold">{item[0]}</h2><p className="mt-1 text-xs text-[#6c7b72]">{item[1]}</p><p className="mt-3 text-xl font-extrabold">{item[2]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="rounded-xl border border-[#b13c35]/20 py-3 text-xs font-extrabold text-[#b13c35]">Rechazar</button><button className="rounded-xl bg-[#174e32] py-3 text-xs font-extrabold text-white">Aprobar</button></div></article>)}</>}
+      {screen === "admin-courts" && <>{courts.slice(0, 3).map((court, index) => <article className="mb-3 rounded-[20px] bg-white p-4" key={court.id}><div className="flex justify-between"><div><h2 className="text-sm font-extrabold">{court.name}</h2><p className="mt-1 text-xs text-[#6c7b72]">Dueño: Carlos Rodríguez · 300 456 7890</p></div><span className={`size-2.5 rounded-full ${index === 1 ? "bg-[#d1473f]" : "bg-[#48a35f]"}`} /></div>{index === 0 && <p className="mt-3 rounded-lg bg-[#fff4d2] p-2 text-[10px] font-bold text-[#765b12]">Tiene una mensualidad por revisar</p>}<button className={`mt-3 text-xs font-extrabold ${index === 1 ? "text-[#286a42]" : "text-[#b13c35]"}`}>{index === 1 ? "Reactivar" : "Suspender"}</button></article>)}</>}
+      {screen === "admin-users" && <><label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3.5"><Icon name="search" /><input className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Buscar por nombre o correo" /></label>{[["Laura Méndez", "laura@correo.com", "Jugador"], ["Carlos Rodríguez", "carlos@correo.com", "Dueño"], ["Andrés Pérez", "andres@correo.com", "Jugador"]].map((user) => <article className="mt-3 flex items-center justify-between rounded-[18px] bg-white p-4" key={user[1]}><div><h2 className="text-sm font-extrabold">{user[0]}</h2><p className="mt-1 text-xs text-[#6c7b72]">{user[1]} · {user[2]}</p></div><button className="text-xs font-extrabold text-[#b13c35]">Eliminar</button></article>)}</>}
+      {screen === "admin-reviews" && <>{[["La Bombonera 5", "2 estrellas", "Por Juan P. · 3 reportes", "La atención fue muy mala y no respetaron el horario."], ["Golazo Arena", "1 estrella", "Por Mateo R. · 2 reportes", "Comentario ofensivo reportado por la comunidad."]].map((review) => <article className="mb-4 rounded-[22px] bg-white p-5" key={review[0]}><div className="flex justify-between"><h2 className="text-sm font-extrabold">{review[0]}</h2><span className="text-xs font-bold text-[#e2a51c]">{review[1]}</span></div><p className="mt-1 text-[11px] text-[#8a968f]">{review[2]}</p><p className="mt-4 text-sm leading-relaxed text-[#52665a]">{review[3]}</p><p className="mt-3 text-[10px] font-bold text-[#b13c35]">Motivos: lenguaje ofensivo, información falsa</p><div className="mt-4 grid grid-cols-2 gap-2"><button className="rounded-xl border border-[#143e2a]/10 py-3 text-xs font-extrabold">Conservar</button><button className="rounded-xl bg-[#b13c35] py-3 text-xs font-extrabold text-white">Ocultar</button></div></article>)}</>}
+      {screen === "admin-summary" && <><div className="grid grid-cols-2 gap-3">{[["Usuarios", "1.248"], ["Canchas activas", "84"], ["Reservas", "3.420"], ["Ingresos aprobados", "$48,2 M"]].map((metric, index) => <article className={`rounded-[20px] p-4 ${index === 3 ? "bg-[#174e32] text-white" : "bg-white"}`} key={metric[0]}><p className={`text-[11px] font-semibold ${index === 3 ? "text-white/60" : "text-[#78877e]"}`}>{metric[0]}</p><p className={`mt-2 text-2xl font-extrabold ${index === 3 ? "text-[#d9ff5b]" : ""}`}>{metric[1]}</p></article>)}</div><h2 className="mb-3 mt-7 text-lg font-extrabold">Transacciones aprobadas</h2><div className="rounded-[22px] bg-white p-5"><div className="flex justify-between border-b border-[#143e2a]/8 pb-4"><span className="text-xs text-[#6c7b72]">128 transacciones</span><strong>$12.840.000</strong></div>{[["Carlos Rodríguez", "Hoy", "$100.000"], ["Laura Méndez", "Hoy", "$54.000"], ["María López", "Ayer", "$100.000"]].map((row) => <div className="flex justify-between border-b border-[#143e2a]/8 py-3 text-xs last:border-0" key={row[0]}><span><strong>{row[0]}</strong><span className="ml-2 text-[#8a968f]">{row[1]}</span></span><strong>{row[2]}</strong></div>)}</div></>}
+    </MobilePage>
+  );
+}
+
+function Brand({ light = false }: { light?: boolean }) {
+  return (
+    <div className={`inline-flex items-center gap-2.5 ${light ? "text-white" : "text-[#11251b]"}`}>
+      <span className={`grid size-11 place-items-center rounded-2xl ${light ? "bg-[#d9ff5b] text-[#11251b]" : "bg-[#174e32] text-[#d9ff5b]"}`}>
+        <span className="text-lg font-black italic">N</span>
+      </span>
+      <span className="text-2xl font-extrabold tracking-[-0.05em]">Noventa</span>
+    </div>
+  );
+}
+
+function AuthShell({
+  children,
+  onBack,
+}: {
+  children: React.ReactNode;
+  onBack?: () => void;
+}) {
+  return (
+    <main className="min-h-screen bg-[#f4f5ec] text-[#11251b]">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-8 pt-[max(24px,env(safe-area-inset-top))]">
+        <div className="flex h-12 items-center">
+          {onBack ? (
+            <button
+              aria-label="Volver"
+              className="grid size-11 place-items-center rounded-full border border-[#143e2a]/10 bg-white text-[#174e32] shadow-sm"
+              onClick={onBack}
+            >
+              <span className="rotate-180"><Icon name="chevron" /></span>
+            </button>
+          ) : <Brand />}
+        </div>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function Field({
+  error,
+  icon,
+  label,
+  onChange,
+  placeholder,
+  type = "text",
+  value,
+  action,
+}: {
+  error?: string;
+  icon: IconName;
+  label: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: string;
+  value: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-bold text-[#304c3b]">{label}</span>
+      <span className={`flex items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 transition focus-within:ring-2 ${error ? "border-[#c93b3b] focus-within:ring-[#c93b3b]/15" : "border-[#143e2a]/12 focus-within:border-[#438158] focus-within:ring-[#438158]/15"}`}>
+        <span className={error ? "text-[#c93b3b]" : "text-[#6c7b72]"}><Icon name={icon} size={19} /></span>
+        <input
+          className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#11251b] outline-none placeholder:font-medium placeholder:text-[#9aa49e]"
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          type={type}
+          value={value}
+        />
+        {action}
+      </span>
+      {error && <span className="mt-1.5 block text-xs font-semibold text-[#c93b3b]">{error}</span>}
+    </label>
+  );
+}
+
+function LoginScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!email) nextErrors.email = "Ingresa tu correo.";
+    else if (!/\S+@\S+\.\S+/.test(email)) nextErrors.email = "Ingresa un correo válido.";
+    if (!password) nextErrors.password = "Ingresa tu contraseña.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) goTo("courts");
+  }
+
+  return (
+    <AuthShell>
+      <div className="flex flex-1 flex-col justify-center py-8">
+        <div>
+          <p className="text-sm font-bold text-[#438158]">Bienvenido de nuevo</p>
+          <h1 className="mt-2 text-4xl font-extrabold leading-tight tracking-[-0.05em]">Reserva tu cancha<br />en segundos.</h1>
+          <p className="mt-3 text-sm leading-relaxed text-[#6c7b72]">Ingresa para volver a la cancha y organizar tu próximo partido.</p>
+        </div>
+
+        <form className="mt-8 space-y-5" onSubmit={submit}>
+          <Field error={errors.email} icon="mail" label="Correo" onChange={setEmail} placeholder="tu@correo.com" type="email" value={email} />
+          <Field
+            action={
+              <button aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"} className="text-[#6c7b72]" onClick={() => setShowPassword(!showPassword)} type="button">
+                <Icon name="eye" size={19} />
+              </button>
+            }
+            error={errors.password}
+            icon="lock"
+            label="Contraseña"
+            onChange={setPassword}
+            placeholder="Ingresa tu contraseña"
+            type={showPassword ? "text" : "password"}
+            value={password}
+          />
+          <button className="ml-auto block text-sm font-bold text-[#286a42]" onClick={() => goTo("recover")} type="button">¿Olvidaste tu contraseña?</button>
+          <button className="w-full rounded-2xl bg-[#174e32] py-4 text-[15px] font-extrabold text-white shadow-[0_12px_28px_rgba(23,78,50,.2)] transition active:scale-[.99]" type="submit">
+            Ingresar
+          </button>
+        </form>
+
+        <div className="my-6 flex items-center gap-3 text-xs font-semibold text-[#89958e]">
+          <span className="h-px flex-1 bg-[#143e2a]/10" />o continúa con<span className="h-px flex-1 bg-[#143e2a]/10" />
+        </div>
+        <button className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#143e2a]/12 bg-white py-3.5 text-sm font-extrabold">
+          <span className="text-lg font-black text-[#4285f4]">G</span>
+          Continuar con Google
+        </button>
+        <button className="mt-4 w-full rounded-2xl py-3 text-sm font-extrabold text-[#174e32]" onClick={() => goTo("register")}>
+          Crear cuenta nueva
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function RegisterScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [values, setValues] = useState({ name: "", email: "", phone: "", password: "" });
+  const [owner, setOwner] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function update(key: keyof typeof values, value: string) {
+    setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!values.name.trim()) nextErrors.name = "Escribe tu nombre completo.";
+    if (!/\S+@\S+\.\S+/.test(values.email)) nextErrors.email = "Ingresa un correo válido.";
+    if (!/^3\d{9}$/.test(values.phone)) nextErrors.phone = "Debe tener 10 dígitos y empezar por 3.";
+    if (values.password.length < 8) nextErrors.password = "Usa al menos 8 caracteres.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) goTo("courts");
+  }
+
+  return (
+    <AuthShell onBack={() => goTo("login")}>
+      <div className="pt-6">
+        <p className="text-sm font-bold text-[#438158]">Tu equipo te espera</p>
+        <h1 className="mt-1 text-3xl font-extrabold tracking-[-0.045em]">Crea tu cuenta</h1>
+        <p className="mt-2 text-sm text-[#6c7b72]">Completa tus datos para empezar a reservar.</p>
+      </div>
+      <form className="mt-7 space-y-4" onSubmit={submit}>
+        <Field error={errors.name} icon="user" label="Nombre completo" onChange={(value) => update("name", value)} placeholder="Tu nombre y apellido" value={values.name} />
+        <Field error={errors.email} icon="mail" label="Correo" onChange={(value) => update("email", value)} placeholder="tu@correo.com" type="email" value={values.email} />
+        <Field error={errors.phone} icon="phone" label="Celular de contacto" onChange={(value) => update("phone", value.replace(/\D/g, "").slice(0, 10))} placeholder="300 000 0000" type="tel" value={values.phone} />
+        <Field error={errors.password} icon="lock" label="Contraseña" onChange={(value) => update("password", value)} placeholder="Mínimo 8 caracteres" type="password" value={values.password} />
+
+        <button
+          aria-pressed={owner}
+          className="flex w-full items-center justify-between rounded-2xl border border-[#143e2a]/10 bg-white p-4 text-left"
+          onClick={() => setOwner(!owner)}
+          type="button"
+        >
+          <span>
+            <span className="block text-sm font-extrabold">Soy dueño de una cancha</span>
+            <span className="mt-0.5 block text-xs font-medium text-[#748179]">Administra reservas y pagos</span>
+          </span>
+          <span className={`relative h-7 w-12 rounded-full transition ${owner ? "bg-[#174e32]" : "bg-[#d9ddd8]"}`}>
+            <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition ${owner ? "left-6" : "left-1"}`} />
+          </span>
+        </button>
+
+        <button className="mt-2 w-full rounded-2xl bg-[#174e32] py-4 text-[15px] font-extrabold text-white shadow-[0_12px_28px_rgba(23,78,50,.2)]" type="submit">
+          Crear cuenta
+        </button>
+        <p className="px-4 text-center text-[11px] leading-relaxed text-[#7d8982]">Al continuar aceptas los términos de uso y la política de privacidad.</p>
+      </form>
+    </AuthShell>
+  );
+}
+
+function RecoverScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  return (
+    <AuthShell onBack={() => goTo("login")}>
+      <div className="flex flex-1 flex-col justify-center py-10">
+        <span className="grid size-16 place-items-center rounded-[22px] bg-[#e2f0dc] text-[#174e32]"><Icon name="mail" size={27} /></span>
+        <h1 className="mt-6 text-3xl font-extrabold tracking-[-0.045em]">{sent ? "Revisa tu correo" : "Recupera tu contraseña"}</h1>
+        <p className="mt-3 text-sm leading-relaxed text-[#6c7b72]">
+          {sent ? <>Te enviamos un enlace a <strong className="text-[#304c3b]">{email}</strong>. Revisa también la carpeta de spam.</> : "Ingresa el correo de tu cuenta y te enviaremos un enlace para crear una contraseña nueva."}
+        </p>
+        {!sent ? (
+          <div className="mt-8">
+            <Field icon="mail" label="Correo" onChange={setEmail} placeholder="tu@correo.com" type="email" value={email} />
+            <button className="mt-6 w-full rounded-2xl bg-[#174e32] py-4 text-[15px] font-extrabold text-white" onClick={() => email && setSent(true)}>Enviar enlace</button>
+          </div>
+        ) : (
+          <button className="mt-8 w-full rounded-2xl border border-[#174e32]/15 bg-white py-4 text-sm font-extrabold text-[#174e32]" onClick={() => setSent(false)}>Enviar de nuevo</button>
+        )}
+        <button className="mt-4 w-full py-3 text-sm font-extrabold text-[#286a42]" onClick={() => goTo("new-password")}>Ya tengo el código</button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function NewPasswordScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <AuthShell onBack={() => goTo("recover")}>
+      <div className="flex flex-1 flex-col justify-center py-10">
+        {saved ? (
+          <div className="text-center">
+            <span className="mx-auto grid size-20 place-items-center rounded-full bg-[#d9ff5b] text-3xl font-black text-[#174e32]">✓</span>
+            <h1 className="mt-6 text-3xl font-extrabold tracking-[-0.045em]">Contraseña actualizada</h1>
+            <p className="mt-3 text-sm text-[#6c7b72]">Ya puedes ingresar con tu nueva contraseña.</p>
+            <button className="mt-8 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white" onClick={() => goTo("login")}>Volver a ingresar</button>
+          </div>
+        ) : (
+          <>
+            <span className="grid size-16 place-items-center rounded-[22px] bg-[#e2f0dc] text-[#174e32]"><Icon name="lock" size={27} /></span>
+            <h1 className="mt-6 text-3xl font-extrabold tracking-[-0.045em]">Crea una contraseña nueva</h1>
+            <p className="mt-3 text-sm leading-relaxed text-[#6c7b72]">Pega el código que recibiste y elige una contraseña segura.</p>
+            <div className="mt-8 space-y-5">
+              <Field icon="mail" label="Código del enlace" onChange={setCode} placeholder="Ej. GZ-482910" value={code} />
+              <Field icon="lock" label="Contraseña nueva" onChange={setPassword} placeholder="Mínimo 8 caracteres" type="password" value={password} />
+              <button className="w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white disabled:opacity-40" disabled={!code || password.length < 8} onClick={() => setSaved(true)}>Guardar contraseña</button>
+            </div>
+          </>
+        )}
+      </div>
+    </AuthShell>
+  );
+}
+
+function VerifyEmailScreen({ goTo }: { goTo: (screen: AppScreen) => void }) {
+  const expired = new URLSearchParams(window.location.search).get("status") === "expired";
+
+  return (
+    <AuthShell>
+      <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
+        <div className="relative">
+          <span className={`grid size-24 place-items-center rounded-full text-4xl font-black ${expired ? "bg-[#f8dfdc] text-[#b63b32]" : "bg-[#d9ff5b] text-[#174e32]"}`}>{expired ? "!" : "✓"}</span>
+          {!expired && <span className="absolute -right-1 top-0 size-5 rounded-full bg-[#174e32]" />}
+        </div>
+        <p className={`mt-8 text-sm font-bold ${expired ? "text-[#b63b32]" : "text-[#438158]"}`}>{expired ? "No pudimos verificarlo" : "Todo listo"}</p>
+        <h1 className="mt-2 text-4xl font-extrabold tracking-[-0.05em]">{expired ? "El enlace venció" : "¡Correo confirmado!"}</h1>
+        <p className="mt-3 max-w-xs text-sm leading-relaxed text-[#6c7b72]">
+          {expired ? "Este enlace ya no es válido. Ingresa a tu perfil para solicitar uno nuevo." : "Tu correo fue verificado correctamente. Ya puedes usar todas las funciones de Noventa."}
+        </p>
+        <button className="mt-9 w-full rounded-2xl bg-[#174e32] py-4 text-sm font-extrabold text-white" onClick={() => goTo(expired ? "login" : "courts")}>{expired ? "Volver al inicio" : "Continuar"}</button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function SplashScreen({ onDone }: { onDone: () => void }) {
+  const [connectionError, setConnectionError] = useState(
+    () => new URLSearchParams(window.location.search).get("sessionError") === "1",
+  );
+
+  useEffect(() => {
+    if (connectionError) return;
+    const timer = window.setTimeout(onDone, 1400);
+    return () => window.clearTimeout(timer);
+  }, [connectionError, onDone]);
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#07100b] px-8 text-white">
+      <div className="flex flex-1 items-center"><Brand light /></div>
+      {connectionError ? (
+        <div className="mb-[max(40px,env(safe-area-inset-bottom))] w-full max-w-xs rounded-[22px] border border-white/10 bg-white/8 p-5 text-center">
+          <p className="text-sm font-extrabold">No pudimos conectar</p>
+          <p className="mt-1 text-xs leading-relaxed text-white/55">Revisa tu conexión e inténtalo de nuevo.</p>
+          <button className="mt-4 w-full rounded-xl bg-[#d9ff5b] py-3 text-sm font-extrabold text-[#11251b]" onClick={() => setConnectionError(false)}>Reintentar</button>
+        </div>
+      ) : (
+        <div className="mb-[max(40px,env(safe-area-inset-bottom))] flex items-center gap-3 text-xs font-semibold text-white/55">
+          <span className="size-5 animate-spin rounded-full border-2 border-white/20 border-t-[#d9ff5b]" />
+          Recuperando tu sesión
+        </div>
+      )}
+    </main>
+  );
+}
+
+function App() {
+  const [role, setRole] = useState<AppRole>("player");
+  const [selectedCourt, setSelectedCourt] = useState<(typeof courts)[number]>(courts[0]);
+  const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
+  const [screen, setScreen] = useState<AppScreen>(() => {
+    const entry = `${window.location.pathname}${window.location.hash}`;
+    if (entry.includes("reset-password")) return "new-password";
+    if (entry.includes("verify-email")) return "verify";
+    return "splash";
+  });
+
+  if (screen === "splash") return <SplashScreen onDone={() => setScreen("login")} />;
+  if (screen === "login") return <LoginScreen goTo={setScreen} />;
+  if (screen === "register") return <RegisterScreen goTo={setScreen} />;
+  if (screen === "recover") return <RecoverScreen goTo={setScreen} />;
+  if (screen === "new-password") return <NewPasswordScreen goTo={setScreen} />;
+  if (screen === "verify") return <VerifyEmailScreen goTo={setScreen} />;
+  if (screen === "player-reservations") return <PlayerReservations goTo={setScreen} />;
+  if (screen === "notifications") return <NotificationsScreen goTo={setScreen} role={role} />;
+  if (screen === "profile") {
+    return (
+      <ProfileScreen
+        goTo={setScreen}
+        role={role}
+        onRole={(nextRole) => {
+          setRole(nextRole);
+          setScreen(nextRole === "player" ? "courts" : nextRole === "owner" ? "owner-reservations" : "admin-summary");
+        }}
+      />
+    );
+  }
+  if (screen === "owner-reservations") return <OwnerReservations goTo={setScreen} />;
+  if (screen === "owner-payments") return <OwnerPayments goTo={setScreen} />;
+  if (screen === "owner-courts") return <OwnerCourts goTo={setScreen} />;
+  if (screen === "new-court") return <CourtFormScreen goTo={setScreen} />;
+  if (screen === "manage-court") return <ManageCourtScreen goTo={setScreen} />;
+  if (screen === "stats") return <StatsScreen goTo={setScreen} />;
+  if (screen.startsWith("admin-")) return <AdminScreen goTo={setScreen} screen={screen} />;
+  if (screen === "payment" && bookingDraft) {
+    return <PaymentScreen booking={bookingDraft} onBack={() => setScreen("detail")} onReservations={() => setScreen("courts")} />;
+  }
+  if (screen === "detail") {
+    return (
+      <CourtDetail
+        court={selectedCourt}
+        onBack={() => setScreen("courts")}
+        onContinue={(booking) => {
+          setBookingDraft(booking);
+          setScreen("payment");
+          window.scrollTo({ top: 0 });
+        }}
+      />
+    );
+  }
+  return (
+    <PlayerCourts
+      goTo={setScreen}
+      onOpenCourt={(court) => {
+        setSelectedCourt(court);
+        setScreen("detail");
+        window.scrollTo({ top: 0 });
+      }}
+    />
+  );
+}
+
+export default App;

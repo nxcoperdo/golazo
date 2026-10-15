@@ -41,3 +41,47 @@ class ProofImage extends ConsumerWidget {
     );
   }
 }
+
+/// Miniatura cuadrada del comprobante; al tocarla se abre en grande con zoom.
+class ProofThumb extends ConsumerWidget {
+  const ProofThumb({super.key, required this.paymentId, this.size = 64});
+  final String paymentId;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final img = ref.watch(proofImageProvider(paymentId));
+    const bg = Color(0xFFE6EEE2);
+    Widget box(Widget child) => Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+          child: child,
+        );
+    return img.when(
+      loading: () => box(const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+      error: (e, _) => InkWell(
+        onTap: () => ref.invalidate(proofImageProvider(paymentId)),
+        child: box(const Icon(Icons.refresh, size: 20, semanticLabel: 'Recargar comprobante')),
+      ),
+      data: (bytes) => Semantics(
+        button: true,
+        label: 'Ver comprobante',
+        child: GestureDetector(
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (_) => Dialog(
+              insetPadding: const EdgeInsets.all(12),
+              child: InteractiveViewer(child: Image.memory(bytes)),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(bytes, width: size, height: size, fit: BoxFit.cover),
+          ),
+        ),
+      ),
+    );
+  }
+}

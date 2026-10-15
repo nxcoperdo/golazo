@@ -1,0 +1,42 @@
+# Compila Golazo para iOS SIN firmar en Codemagic y entrega un .ipa que se instala con
+# Sideloadly (que lo firma con tu Apple ID). Con Apple ID gratis NO hay push en iOS ni
+# capability aps-environment; la app caduca a los 7 días y hay que reinstalarla.
+#
+# Variables en Codemagic (Environment variables, grupo "golazo"):
+#   API_URL                 -> https://api.tudominio.com/v1  (la app lo lee con --dart-define)
+#   GOOGLE_SERVICE_INFO_PLIST (opcional, base64 del GoogleService-Info.plist, solo si habrá push)
+workflows:
+  ios-sideload:
+    name: iOS sin firmar (Sideloadly)
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    environment:
+      groups:
+        - golazo
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Dependencias
+        script: flutter pub get
+      - name: Plist de Firebase (opcional)
+        script: |
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
+            echo "PUSH_DEFINE=--dart-define=GOLAZO_PUSH_IOS=true" >> $CM_ENV
+          fi
+      - name: Pods
+        script: |
+          cd ios
+          pod install
+      - name: Compilar sin firmar
+        script: |
+          flutter build ios --release --no-codesign \
+            --dart-define=API_URL="$API_URL" $PUSH_DEFINE
+      - name: Empaquetar .ipa
+        script: |
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
+          (cd build/ipa && zip -qr Golazo-unsigned.ipa Payload)
+    artifacts:
+      - build/ipa/Golazo-unsigned.ipa

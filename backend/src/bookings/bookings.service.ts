@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AccountService } from '../auth/account.service.js';
 import { dateLabelCo, hourLabelCo } from '../common/time.js';
 import { Db, EXCLUSION_VIOLATION, pgCode } from '../db/db.service.js';
@@ -24,6 +25,7 @@ export interface BookingRow {
   courtId: string;
   status: string;
   startAt: Date;
+  createdAt: Date;
 }
 
 interface CourtRow {
@@ -39,11 +41,17 @@ interface CourtRow {
 
 @Injectable()
 export class BookingsService {
+  /** Minutos para subir el comprobante (el mismo valor que usa la tarea que libera las horas). */
+  private readonly unpaidMinutes: number;
+
   constructor(
     private readonly db: Db,
     private readonly account: AccountService,
     private readonly notifications: NotificationsService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.unpaidMinutes = Number(config.get('UNPAID_MINUTES') ?? 30);
+  }
 
   async create(playerId: string, input: { courtId: string; startAt: string; hours: number }) {
     const start = new Date(input.startAt);
@@ -215,9 +223,12 @@ export class BookingsService {
     return this.detail(playerId, id);
   }
 
-  private withCancelFlag<T extends { status: string; startAt: Date }>(b: T) {
+  private withCancelFlag<T extends { status: string; startAt: Date; createdAt: Date }>(b: T) {
     const live = ['pending_payment', 'pending_review', 'confirmed', 'rejected'].includes(b.status);
     const cancellable = live && (b.status === 'pending_payment' || canCancelFree(b.startAt, new Date()));
-    return { ...b, cancellable };
+    // Hasta cuándo se puede subir el comprobante antes de que la hora se libere (solo sin comprobante).
+    const payBy =
+      b.status === 'pending_payment' ? new Date(b.createdAt.getTime() + this.unpaidMinutes * 60_000) : null;
+    return { ...b, cancellable, payBy };
   }
 }

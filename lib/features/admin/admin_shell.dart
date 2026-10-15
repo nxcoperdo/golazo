@@ -4,7 +4,7 @@ import '../../core/widgets/shell.dart';
 import 'admin_tabs.dart';
 
 /// Panel del administrador: Pagos · Canchas · Usuarios · Reseñas · Resumen.
-/// Avisos y Perfil están en la barra superior.
+/// Avisos y Perfil están en los botones del encabezado de cada pestaña.
 class AdminShell extends StatelessWidget {
   const AdminShell({super.key, this.tab = 0});
   final int tab;
@@ -12,7 +12,6 @@ class AdminShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ShellScaffold(
         initialTab: tab,
-        showAppBar: true,
         tabs: const [
           TabSpec(label: 'Pagos', icon: Icons.payments, page: AdminPaymentsTab()),
           TabSpec(label: 'Canchas', icon: Icons.stadium, page: AdminCourtsTab()),

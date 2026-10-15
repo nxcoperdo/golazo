@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.golazo"
+    namespace = "co.golazo.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.golazo"
+        applicationId = "co.golazo.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -46,4 +46,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// Push (FCM): el plugin exige google-services.json (no se versiona). Sin el archivo la app
+// compila igual y simplemente no tiene push.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }

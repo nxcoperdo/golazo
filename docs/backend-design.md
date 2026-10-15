@@ -43,6 +43,7 @@ CREATE TABLE courts (
   address          text NOT NULL,
   location         geography(Point,4326) NOT NULL,
   covered          boolean NOT NULL,
+  court_type       smallint NOT NULL DEFAULT 5 CHECK (court_type IN (5,6,7,8,11)),  -- Fútbol 5/6/7/8/11 (migración 004)
   price_per_hour   integer NOT NULL CHECK (price_per_hour > 0),   -- COP
   open_hour        smallint NOT NULL CHECK (open_hour BETWEEN 0 AND 23),
   close_hour       smallint NOT NULL CHECK (close_hour BETWEEN 1 AND 24),
@@ -188,7 +189,7 @@ La mensualidad: al aprobar el pago `subscription`, se crea un periodo de 30 día
 - El celular **no es método de login**: se pide al registrarse como dato de contacto (el dueño lo ve en la reserva) y se valida solo el formato `3XXXXXXXXX`. Quien entra con Google lo completa en un paso posterior antes de reservar.
 
 **Jugador**
-- `GET /courts?city=&lat=&lng=&radius=&maxPrice=&covered=` — solo activas; ordena por cercanía si hay `lat/lng`.
+- `GET /courts?city=&lat=&lng=&radius=&maxPrice=&covered=&courtType=` — solo activas; ordena por cercanía si hay `lat/lng`.
 - `GET /courts/:id` — detalle, fotos, medios de pago, rating.
 - `GET /courts/:id/availability?date=YYYY-MM-DD` — horas libres/ocupadas.
 - `POST /bookings` `{courtId, startAt, hours}` (`hours` 1–4) → devuelve reserva con `deposit` y estado.

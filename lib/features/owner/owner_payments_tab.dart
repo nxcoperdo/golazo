@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/auth_ui.dart';
+import '../../core/widgets/design.dart';
+import '../../core/widgets/payment_actions.dart';
 import '../../core/widgets/payment_card.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
@@ -25,10 +28,8 @@ class _State extends ConsumerState<OwnerPaymentsTab> {
   }
 
   Future<void> _approve(Payment p) async {
-    if (!await confirm(context,
-        title: '¿Aprobar este pago?',
-        message: 'La reserva de ${p.payerName} quedará confirmada.',
-        okLabel: 'Aprobar')) {
+    if (!await askApprove(context,
+        title: '¿Aprobar este pago?', message: 'La reserva de ${p.payerName} quedará confirmada.')) {
       return;
     }
     if (!mounted) return;
@@ -37,8 +38,7 @@ class _State extends ConsumerState<OwnerPaymentsTab> {
   }
 
   Future<void> _reject(Payment p) async {
-    final reason = await askText(context,
-        title: 'Rechazar comprobante', hint: 'Motivo (se lo mostramos al jugador)', okLabel: 'Rechazar');
+    final reason = await askRejectReason(context);
     if (reason == null || !mounted) return;
     final ok = await guarded(
       context,
@@ -52,46 +52,43 @@ class _State extends ConsumerState<OwnerPaymentsTab> {
   Widget build(BuildContext context) {
     final provider = ownerPaymentsProvider(_history ? null : PaymentStatus.pending);
     final payments = ref.watch(provider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pagos')),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Por revisar')),
-              ButtonSegment(value: true, label: Text('Historial')),
-            ],
-            selected: {_history},
-            onSelectionChanged: (s) => setState(() => _history = s.first),
-          ),
-        ),
-        Expanded(
-          child: AsyncView<List<Payment>>(
-            value: payments,
-            onRetry: () => ref.invalidate(provider),
-            emptyText: _history ? 'Todavía no hay pagos.' : 'No hay comprobantes por revisar.',
-            isEmpty: (l) => (_history ? l.where((p) => p.status != PaymentStatus.pending) : l).isEmpty,
-            builder: (all) {
-              final list = _history ? all.where((p) => p.status != PaymentStatus.pending).toList() : all;
-              return RefreshIndicator(
-                onRefresh: () async {
-                  ref.invalidate(provider);
-                  await ref.read(provider.future);
-                },
-                child: ListView(padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-                  for (final p in list)
-                    PaymentCard(
-                      payment: p,
-                      onApprove: p.status == PaymentStatus.pending ? () => _approve(p) : null,
-                      onReject: p.status == PaymentStatus.pending ? () => _reject(p) : null,
-                    ),
-                ]),
-              );
+    return AppPage(
+      kicker: 'Anticipos',
+      title: 'Pagos',
+      child: AsyncView<List<Payment>>(
+        value: payments,
+        onRetry: () => ref.invalidate(provider),
+        builder: (all) {
+          final list = _history ? all.where((p) => p.status != PaymentStatus.pending).toList() : all;
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(provider);
+              await ref.read(provider.future);
             },
-          ),
-        ),
-      ]),
+            child: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16).withNav(context), children: [
+              SegmentedTabs<bool>(
+                options: const [(false, 'Por revisar'), (true, 'Historial')],
+                value: _history,
+                onChanged: (v) => setState(() => _history = v),
+              ),
+              const SizedBox(height: 20),
+              if (list.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: Text(_history ? 'Todavía no hay pagos.' : 'No hay comprobantes por revisar.',
+                      textAlign: TextAlign.center, style: authText(14, weight: 500, color: AuthColors.muted)),
+                )
+              else
+                for (final p in list)
+                  PaymentCard(
+                    payment: p,
+                    onApprove: p.status == PaymentStatus.pending ? () => _approve(p) : null,
+                    onReject: p.status == PaymentStatus.pending ? () => _reject(p) : null,
+                  ),
+            ]),
+          );
+        },
+      ),
     );
   }
 }

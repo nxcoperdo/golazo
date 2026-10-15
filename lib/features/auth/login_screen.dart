@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/google_auth.dart';
-import '../../core/logo.dart';
 import '../../core/validators.dart';
+import '../../core/widgets/auth_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/providers.dart';
 
@@ -19,7 +19,6 @@ class _LoginState extends ConsumerState<LoginScreen> {
   final _form = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _hide = true;
   bool _busy = false;
 
   @override
@@ -48,77 +47,65 @@ class _LoginState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Form(
-                key: _form,
-                child: AutofillGroup(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    const Center(child: GolazoLogo(size: 96)),
-                    const SizedBox(height: 8),
-                    Text('Golazo',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displaySmall),
-                    Text('Reserva tu cancha en segundos',
-                        textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Correo'),
-                      validator: Validators.email,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: _hide,
-                      autofillHints: const [AutofillHints.password],
-                      onFieldSubmitted: (_) => _login(),
-                      decoration: InputDecoration(
-                        labelText: 'Contraseña',
-                        suffixIcon: IconButton(
-                          icon: Icon(_hide ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _hide = !_hide),
-                        ),
-                      ),
-                      validator: (v) => Validators.required(v, 'La contraseña'),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _busy ? null : () => context.push('/forgot'),
-                        child: const Text('¿Olvidaste tu contraseña?'),
-                      ),
-                    ),
-                    FilledButton(
-                      onPressed: _busy ? null : _login,
-                      child: _busy
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Ingresar'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : _google,
-                      icon: const Icon(Icons.g_mobiledata, size: 28),
-                      label: const Text('Continuar con Google'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _busy ? null : () => context.push('/register'),
-                      child: const Text('Crear cuenta nueva'),
-                    ),
-                  ]),
-                ),
+    return AuthShell(
+      child: Form(
+        key: _form,
+        child: AutofillGroup(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 16),
+            const AuthTitle(
+              kicker: 'Bienvenido de nuevo',
+              title: 'Reserva tu cancha\nen segundos.',
+              subtitle: 'Ingresa para volver a la cancha y organizar tu próximo partido.',
+            ),
+            const SizedBox(height: 32),
+            AuthField(
+              label: 'Correo',
+              icon: Icons.mail_outline,
+              hint: 'tu@correo.com',
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              textInputAction: TextInputAction.next,
+              validator: Validators.email,
+            ),
+            const SizedBox(height: 20),
+            AuthField(
+              label: 'Contraseña',
+              icon: Icons.lock_outline,
+              hint: 'Ingresa tu contraseña',
+              controller: _password,
+              password: true,
+              autofillHints: const [AutofillHints.password],
+              onSubmitted: (_) => _login(),
+              validator: (v) => (v == null || v.isEmpty) ? 'Escribe tu contraseña' : null,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _busy ? null : () => context.push('/forgot'),
+                child: const Text('¿Olvidaste tu contraseña?'),
               ),
             ),
-          ),
+            const SizedBox(height: 4),
+            PrimaryButton(label: 'Ingresar', busy: _busy, onPressed: _login),
+            const SizedBox(height: 24),
+            const OrDivider('o continúa con'),
+            const SizedBox(height: 24),
+            OutlinedButton(
+              onPressed: _busy ? null : _google,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text('G', style: authText(18, weight: 800, color: const Color(0xFF4285F4))),
+                const SizedBox(width: 12),
+                const Text('Continuar con Google'),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _busy ? null : () => context.push('/register'),
+              child: const Text('Crear cuenta nueva'),
+            ),
+          ]),
         ),
       ),
     );

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/validators.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/auth_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
@@ -32,113 +35,271 @@ class _State extends ConsumerState<CourtDetailScreen> {
   late DateTime _day = _today;
   Set<int> _hours = {};
   bool _busy = false;
+  final _phone = TextEditingController();
+  final _reviewsKey = GlobalKey();
 
   AvailabilityKey get _key => (courtId: widget.courtId, day: _day);
 
   @override
+  void dispose() {
+    _phone.dispose();
+    super.dispose();
+  }
+
+  /// El dueño necesita un celular para contactar al jugador: se pide aquí solo si falta.
+  bool get _needsPhone {
+    final user = ref.read(sessionProvider).value;
+    return user != null && !user.hasPhone;
+  }
+
+  bool get _phoneOk => !_needsPhone || Validators.phone(_phone.text) == null;
+
+  @override
   Widget build(BuildContext context) {
+    ref.watch(sessionProvider); // el campo de celular depende de si el usuario ya lo tiene
     final court = ref.watch(courtDetailProvider(widget.courtId));
-    return Scaffold(
-      appBar: AppBar(title: Text(court.value?.name ?? 'Cancha')),
-      body: AsyncView<Court>(
-        value: court,
-        onRetry: () => ref.invalidate(courtDetailProvider(widget.courtId)),
-        builder: _content,
+    return Theme(
+      data: authTheme(Theme.of(context)),
+      child: Scaffold(
+        body: Stack(children: [
+          AsyncView<Court>(
+            value: court,
+            onRetry: () => ref.invalidate(courtDetailProvider(widget.courtId)),
+            builder: _content,
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: _RoundButton(
+                icon: Icons.chevron_left,
+                tooltip: 'Volver a canchas',
+                onTap: () => context.canPop() ? context.pop() : context.go('/home'),
+              ),
+            ),
+          ),
+        ]),
+        bottomNavigationBar: court.hasValue ? _bottomBar(court.value!) : null,
       ),
-      bottomNavigationBar: court.hasValue ? _bottomBar(court.value!) : null,
     );
   }
 
   Widget _content(Court c) {
     final slots = ref.watch(availabilityProvider(_key));
     return RefreshIndicator(
+      edgeOffset: 80,
       onRefresh: () async {
         ref.invalidate(courtDetailProvider(widget.courtId));
         ref.invalidate(availabilityProvider(_key));
         ref.invalidate(courtReviewsProvider(widget.courtId));
       },
-      child: ListView(children: [
+      child: ListView(padding: EdgeInsets.zero, children: [
         _Gallery(photos: c.photos),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(c.name, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            if (c.reviewCount > 0)
-              Text('★ ${c.rating.toStringAsFixed(1)} · ${c.reviewCount} reseñas')
-            else
-              const Text('Sin reseñas todavía'),
-            const SizedBox(height: 8),
-            Row(children: [
-              const Icon(Icons.place_outlined, size: 18),
-              const SizedBox(width: 6),
-              Expanded(child: Text('${c.address}, ${c.city}')),
-            ]),
-            const SizedBox(height: 12),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              StatusChip(c.covered ? 'Techada' : 'Aire libre'),
-              StatusChip('${hourLabel(c.openHour)} – ${hourLabel(c.closeHour)}'),
-              StatusChip('${cop(c.pricePerHour)} por hora'),
-              if (c.requiresDeposit) StatusChip('Anticipo ${c.depositPercent}%', color: Colors.orange.shade800),
-            ]),
-            if (c.description != null && c.description!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(c.description!),
-            ],
-            const SizedBox(height: 20),
-            Text('Elige el día', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _dayPicker(),
-            const SizedBox(height: 16),
-            Text('Elige la hora', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text('Toca horas seguidas para reservar hasta ${BookingPolicy.maxHours} horas.',
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            AsyncView<List<HourSlot>>(
-              value: slots,
-              onRetry: () => ref.invalidate(availabilityProvider(_key)),
-              builder: (list) => Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final s in list)
-                  ChoiceChip(
-                    label: Text(hourLabel(s.hour)),
-                    selected: _hours.contains(s.hour),
-                    onSelected: s.free ? (_) => setState(() => _hours = BookingPolicy.toggleHour(_hours, s.hour)) : null,
-                  ),
-              ]),
-            ),
-            _summary(c),
-            ReviewsSection(courtId: c.id),
-            const SizedBox(height: 24),
-          ]),
-        ),
+        _header(c),
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Divider(height: 1, color: AuthColors.border)),
+        _about(c),
+        _booking(c, slots),
+        if (_needsPhone) _phoneSection(),
+        KeyedSubtree(key: _reviewsKey, child: ReviewsSection(courtId: c.id)),
+        const SizedBox(height: 16),
       ]),
     );
   }
 
+  Widget _header(Court c) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _Tag(courtTypeLabel(c.courtType), lime: true),
+            if (c.covered) const _Tag('Techada'),
+            if (c.requiresDeposit) _Tag('Anticipo ${c.depositPercent} %'),
+          ]),
+          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Text(c.name, style: authText(30, weight: 800, spacing: -0.05, height: 1.1))),
+            if (c.reviewCount > 0) ...[
+              const SizedBox(width: 12),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.star_rounded, size: 20, color: Color(0xFFF3B61F)),
+                  const SizedBox(width: 2),
+                  Text(c.rating.toStringAsFixed(1), style: authText(14, weight: 800)),
+                ]),
+              ),
+            ],
+          ]),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: c.reviewCount == 0
+                ? null
+                : () => Scrollable.ensureVisible(_reviewsKey.currentContext!, duration: const Duration(milliseconds: 400)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: c.reviewCount > 0
+                  ? Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('${c.reviewCount} ${c.reviewCount == 1 ? 'reseña' : 'reseñas'}',
+                          style: authText(14, weight: 800, color: AuthColors.primary)),
+                      const Icon(Icons.chevron_right, size: 16, color: AuthColors.primary),
+                    ])
+                  : Text('Sin reseñas todavía', style: authText(14, weight: 500, color: AuthColors.muted)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(Icons.place_outlined, size: 18, color: AuthColors.kicker),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('${c.address} · ${c.city}',
+                  style: authText(14, weight: 500, color: const Color(0xFF5C6D63), height: 1.5)),
+            ),
+          ]),
+        ]),
+      );
+
+  Widget _about(Court c) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (c.description != null && c.description!.isNotEmpty) ...[
+            Text('Sobre la cancha', style: authText(18, weight: 800, spacing: -0.025)),
+            const SizedBox(height: 12),
+            Text(c.description!, style: authText(14, weight: 500, color: const Color(0xFF65736B), height: 1.6)),
+            const SizedBox(height: 16),
+          ],
+          Row(children: [
+            Expanded(
+              child: _InfoTile(
+                icon: Icons.schedule,
+                label: 'Horario',
+                value: '${hourLabel(c.openHour)} – ${hourLabel(c.closeHour)}',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _InfoTile(
+                icon: Icons.sports_soccer,
+                label: 'Tipo',
+                value: '${courtTypeLabel(c.courtType)} · ${c.covered ? 'Techada' : 'Aire libre'}',
+              ),
+            ),
+          ]),
+        ]),
+      );
+
+  Widget _booking(Court c, AsyncValue<List<HourSlot>> slots) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border.symmetric(horizontal: BorderSide(color: AuthColors.border)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: _StepTitle('PASO 1', 'Elige el día')),
+          const SizedBox(height: 16),
+          _dayPicker(),
+          const SizedBox(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _StepTitle('PASO 2', 'Elige la hora', trailing: 'Máx. ${BookingPolicy.maxHours} horas'),
+              const SizedBox(height: 16),
+              AsyncView<List<HourSlot>>(
+                value: slots,
+                onRetry: () => ref.invalidate(availabilityProvider(_key)),
+                builder: (list) => _hourGrid(list),
+              ),
+              const SizedBox(height: 12),
+              const _Legend(),
+              _summary(c),
+            ]),
+          ),
+        ]),
+      );
+
   Widget _dayPicker() => SizedBox(
-        height: 48,
+        height: 92,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           itemCount: _daysAhead,
           separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (_, i) {
             final d = _today.add(Duration(days: i));
-            final label = i == 0
-                ? 'Hoy'
-                : i == 1
-                    ? 'Mañana'
-                    : dayLabel(coInstant(d, 12));
-            return ChoiceChip(
-              label: Text(label),
-              selected: d == _day,
-              onSelected: (_) => setState(() {
-                _day = d;
-                _hours = {};
-              }),
+            final selected = d == _day;
+            final fg = selected ? Colors.white : const Color(0xFF5F7066);
+            return Semantics(
+              button: true,
+              selected: selected,
+              child: Material(
+                color: selected ? AuthColors.primary : const Color(0xFFF7F8F2),
+                elevation: selected ? 4 : 0,
+                shadowColor: AuthColors.primary.withValues(alpha: 0.4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: selected ? AuthColors.primary : AuthColors.border),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => setState(() {
+                    _day = d;
+                    _hours = {};
+                  }),
+                  child: SizedBox(
+                    width: 64,
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Text(i == 0 ? 'Hoy' : weekdayShort(d), style: authText(11, weight: 700, color: fg)),
+                      const SizedBox(height: 4),
+                      Text('${d.day}', style: authText(20, weight: 800, color: fg)),
+                      Text(monthShort(d).toUpperCase(), style: authText(10, weight: 600, color: fg)),
+                    ]),
+                  ),
+                ),
+              ),
             );
           },
         ),
+      );
+
+  Widget _hourGrid(List<HourSlot> list) => LayoutBuilder(builder: (context, box) {
+        final w = (box.maxWidth - 16) / 3;
+        return Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final s in list)
+            SizedBox(
+              width: w,
+              height: 44,
+              child: _HourTile(
+                label: hourLabel(s.hour),
+                free: s.free,
+                selected: _hours.contains(s.hour),
+                onTap: () => setState(() => _hours = BookingPolicy.toggleHour(_hours, s.hour)),
+              ),
+            ),
+        ]);
+      });
+
+  Widget _phoneSection() => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Tu celular de contacto', style: authText(18, weight: 800, spacing: -0.025)),
+          const SizedBox(height: 4),
+          Text('El dueño lo usará únicamente si necesita contactarte por esta reserva.',
+              style: authText(12, weight: 500, color: const Color(0xFF78877E), height: 1.5)),
+          const SizedBox(height: 16),
+          Form(
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: AuthField(
+              label: 'Celular',
+              icon: Icons.phone_outlined,
+              hint: '300 000 0000',
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              onChanged: (_) => setState(() {}),
+              validator: Validators.phone,
+            ),
+          ),
+        ]),
       );
 
   /// Instante de inicio y desglose del cobro de la selección actual.
@@ -165,39 +326,64 @@ class _State extends ConsumerState<CourtDetailScreen> {
   Widget _summary(Court c) {
     final q = _quote(c);
     if (q == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(rangeLabel(q.start, _hours.length), style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Text('${_hours.length} h · Total ${cop(q.total)}'),
-            if (q.deposit > 0) Text('Anticipo a pagar: ${cop(q.deposit)}'),
-            const SizedBox(height: 4),
-            Text(
-              q.lastMinute
-                  ? 'Reserva de último momento: anticipo del 30% obligatorio y sin cancelación.'
-                  : 'Cancelación gratis hasta 24 h antes.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ]),
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFFEDF3E9), borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(rangeLabel(q.start, _hours.length), style: authText(13, weight: 800, color: const Color(0xFF285E3C))),
+        const SizedBox(height: 4),
+        Text(
+          q.lastMinute
+              ? 'Reserva de último momento: anticipo del 30% obligatorio y sin cancelación.'
+              : 'Cancelación gratis hasta 24 h antes.',
+          style: authText(12, weight: 500, color: const Color(0xFF285E3C), height: 1.5),
         ),
-      ),
+      ]),
     );
   }
 
   Widget _bottomBar(Court c) {
     final q = _quote(c);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: FilledButton(
-          onPressed: q == null || _busy ? null : () => _book(c, q.start, q.deposit, q.lastMinute),
-          child: _busy
-              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(q == null ? 'Elige una hora' : 'Confirmar reserva'),
+    final canBook = q != null && _phoneOk && !_busy;
+    final sub = q == null
+        ? 'Selecciona una hora'
+        : '${_hours.length} h${q.deposit > 0 ? ' · Anticipo ${cop(q.deposit)}' : ''}';
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.96),
+            border: const Border(top: BorderSide(color: AuthColors.border)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(sub, style: authText(12, weight: 600, color: const Color(0xFF78877E))),
+                      const SizedBox(height: 2),
+                      Text.rich(TextSpan(children: [
+                        TextSpan(text: cop(q?.total ?? 0), style: authText(24, weight: 800, spacing: -0.04)),
+                        TextSpan(text: '  total', style: authText(12, weight: 600, color: const Color(0xFF78877E))),
+                      ])),
+                    ]),
+                  ),
+                  Text('${cop(c.pricePerHour)}/h', style: authText(12, weight: 700, color: AuthColors.kicker)),
+                ]),
+                const SizedBox(height: 12),
+                PrimaryButton(
+                  label: 'Reservar',
+                  busy: _busy,
+                  onPressed: canBook ? () => _book(c, q.start, q.deposit, q.lastMinute) : null,
+                ),
+              ]),
+            ),
+          ),
         ),
       ),
     );
@@ -207,7 +393,13 @@ class _State extends ConsumerState<CourtDetailScreen> {
     if (!await _ensurePhone()) return;
     if (deposit > 0) {
       if (!mounted) return;
-      final pay = await _askDeposit(context, deposit: deposit, lastMinute: lastMinute);
+      final pay = await _askDeposit(
+        context,
+        deposit: deposit,
+        total: c.pricePerHour * _hours.length,
+        hours: _hours.length,
+        lastMinute: lastMinute,
+      );
       if (pay != true) return; // si cierra el aviso no se crea la reserva
     }
     setState(() => _busy = true);
@@ -234,13 +426,10 @@ class _State extends ConsumerState<CourtDetailScreen> {
     }
   }
 
-  /// El dueño necesita un celular para contactar al jugador: se pide la primera vez.
+  /// Si el usuario no tenía celular, se guarda el que escribió en el campo de la pantalla.
   Future<bool> _ensurePhone() async {
-    final user = ref.read(sessionProvider).value;
-    if (user == null || user.hasPhone) return true;
-    final phone = await askText(context,
-        title: 'Tu celular de contacto', hint: '3001234567', okLabel: 'Guardar');
-    if (phone == null || !mounted) return false;
+    if (!_needsPhone) return true;
+    final phone = _phone.text.trim();
     final invalid = Validators.phone(phone);
     if (invalid != null) {
       showSnack(context, invalid);
@@ -253,29 +442,253 @@ class _State extends ConsumerState<CourtDetailScreen> {
   }
 }
 
-/// Aviso previo a crear una reserva que exige anticipo.
-/// Devuelve true si el jugador elige "Pagar anticipo".
+/// Aviso previo a crear una reserva que exige anticipo (hoja inferior).
+/// Devuelve true si el jugador elige "Pagar anticipo"; cerrarla o cancelar = no se crea la reserva.
 Future<bool?> _askDeposit(
   BuildContext context, {
   required int deposit,
+  required int total,
+  required int hours,
   required bool lastMinute,
 }) {
-  return showDialog<bool>(
+  final percent = total == 0 ? 0 : (deposit * 100 / total).round();
+  return showModalBottomSheet<bool>(
     context: context,
-    builder: (_) => AlertDialog(
-      icon: const Icon(Icons.payments_outlined),
-      title: const Text('Esta reserva requiere anticipo'),
-      content: Text(
-        lastMinute
-            ? 'Por ser una reserva de último momento debes pagar un anticipo de ${cop(deposit)} (30%). Esta reserva no tiene cancelación.'
-            : 'Para confirmar tu reserva debes pagar un anticipo de ${cop(deposit)} y subir el comprobante.',
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+    builder: (_) => Theme(
+      data: authTheme(Theme.of(context)),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: const Color(0xFFD5DBD6), borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: const Color(0xFFFFF2CD), borderRadius: BorderRadius.circular(16)),
+                child: Text('!', style: authText(26, weight: 800, color: const Color(0xFF8A6A00))),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text('Esta reserva requiere anticipo', style: authText(24, weight: 800, spacing: -0.04, height: 1.15)),
+            const SizedBox(height: 12),
+            Text.rich(
+              TextSpan(children: [
+                const TextSpan(text: 'Para asegurar el horario debes transferir '),
+                TextSpan(text: cop(deposit), style: authText(14, weight: 800, color: AuthColors.ink, height: 1.5)),
+                TextSpan(
+                  text: lastMinute
+                      ? ' (30 % del total, por ser una reserva de último momento). Esta reserva no tiene cancelación.'
+                      : ', equivalente al $percent % del total.',
+                ),
+              ]),
+              style: authText(14, weight: 500, color: const Color(0xFF66756C), height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: const Color(0xFFF2F5EE), borderRadius: BorderRadius.circular(16)),
+              child: Column(children: [
+                _SummaryRow('Reserva', '$hours h'),
+                const SizedBox(height: 8),
+                _SummaryRow('Total', cop(total)),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Tendrás ${BookingPolicy.unpaidMinutes} minutos para subir el comprobante o las horas se liberarán automáticamente.',
+              style: authText(12, weight: 500, color: const Color(0xFF7D8982), height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            Builder(builder: (ctx) => PrimaryButton(label: 'Pagar anticipo', onPressed: () => Navigator.pop(ctx, true))),
+            Builder(
+              builder: (ctx) => TextButton(
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF65736B), minimumSize: const Size.fromHeight(48)),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+            ),
+          ]),
+        ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Pagar anticipo')),
-      ],
     ),
   );
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Expanded(child: Text(label, style: authText(14, weight: 500, color: AuthColors.muted))),
+        Text(value, style: authText(14, weight: 800)),
+      ]);
+}
+
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({required this.icon, required this.tooltip, required this.onTap});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white.withValues(alpha: 0.95),
+        shape: const CircleBorder(),
+        elevation: 6,
+        shadowColor: Colors.black38,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, color: AuthColors.primary, semanticLabel: tooltip),
+          ),
+        ),
+      );
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag(this.text, {this.lime = false});
+  final String text;
+  final bool lime;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: lime ? AuthColors.lime : const Color(0xFFE1EEE1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(text, style: authText(11, weight: 800, color: lime ? AuthColors.primary : const Color(0xFF285E3C))),
+      );
+}
+
+class _InfoTile extends StatelessWidget {
+  const _InfoTile({required this.icon, required this.label, required this.value});
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 20, color: AuthColors.kicker),
+          const SizedBox(height: 12),
+          Text(label, style: authText(12, weight: 600, color: const Color(0xFF78877E))),
+          const SizedBox(height: 4),
+          Text(value, style: authText(14, weight: 800, height: 1.3)),
+        ]),
+      );
+}
+
+class _StepTitle extends StatelessWidget {
+  const _StepTitle(this.kicker, this.title, {this.trailing});
+  final String kicker;
+  final String title;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(kicker, style: authText(12, weight: 700, color: AuthColors.kicker, spacing: 0.12)),
+            const SizedBox(height: 4),
+            Text(title, style: authText(20, weight: 800, spacing: -0.03)),
+          ]),
+        ),
+        if (trailing != null) Text(trailing!, style: authText(12, weight: 600, color: const Color(0xFF78877E))),
+      ]);
+}
+
+class _HourTile extends StatelessWidget {
+  const _HourTile({required this.label, required this.free, required this.selected, required this.onTap});
+  final String label;
+  final bool free;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color fg;
+    final BorderSide side;
+    if (!free) {
+      bg = const Color(0xFFEEF0EB);
+      fg = const Color(0xFFA6AEA9);
+      side = BorderSide.none;
+    } else if (selected) {
+      bg = AuthColors.lime;
+      fg = AuthColors.ink;
+      side = const BorderSide(color: AuthColors.primary);
+    } else {
+      bg = Colors.white;
+      fg = AuthColors.label;
+      side = const BorderSide(color: Color(0x1F143E2A));
+    }
+    return Semantics(
+      button: true,
+      enabled: free,
+      selected: selected,
+      label: free ? label : '$label, ocupada',
+      child: ExcludeSemantics(
+        child: Material(
+          color: bg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: side),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: free ? onTap : null,
+            child: Center(
+              child: Text(
+                label,
+                style: authText(12, weight: 800, color: fg).copyWith(
+                  decoration: free ? null : TextDecoration.lineThrough,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  Widget _item(String text, Color color, {Color? ring}) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: ring == null ? null : Border.all(color: ring)),
+        ),
+        const SizedBox(width: 6),
+        Text(text, style: authText(11, weight: 600, color: const Color(0xFF77837C))),
+      ]);
+
+  @override
+  Widget build(BuildContext context) => Wrap(spacing: 16, runSpacing: 6, children: [
+        _item('Libre', Colors.white, ring: const Color(0x33174E32)),
+        _item('Elegida', AuthColors.lime, ring: AuthColors.primary),
+        _item('Ocupada', const Color(0xFFDFE3DD)),
+      ]);
 }
 
 class _Gallery extends StatefulWidget {
@@ -287,14 +700,15 @@ class _Gallery extends StatefulWidget {
 }
 
 class _GalleryState extends State<_Gallery> {
+  static const _height = 320.0;
   int _page = 0;
 
   @override
   Widget build(BuildContext context) {
-    if (widget.photos.isEmpty) return const CourtImage(url: null, height: 200);
+    if (widget.photos.isEmpty) return const CourtImage(url: null, height: _height);
     return SizedBox(
-      height: 220,
-      child: Stack(children: [
+      height: _height,
+      child: Stack(fit: StackFit.expand, children: [
         PageView.builder(
           itemCount: widget.photos.length,
           onPageChanged: (i) => setState(() => _page = i),
@@ -306,23 +720,26 @@ class _GalleryState extends State<_Gallery> {
             errorWidget: (_, _, _) => const Center(child: Icon(Icons.broken_image_outlined, size: 40)),
           ),
         ),
+        const IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.center,
+                colors: [Color(0x8C071B10), Color(0x00071B10)],
+              ),
+            ),
+          ),
+        ),
         if (widget.photos.length > 1)
           Positioned(
-            bottom: 8,
-            left: 0,
-            right: 0,
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (var i = 0; i < widget.photos.length; i++)
-                Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i == _page ? Colors.white : Colors.white54,
-                  ),
-                ),
-            ]),
+            right: 20,
+            bottom: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: const Color(0xB3071B10), borderRadius: BorderRadius.circular(20)),
+              child: Text('${_page + 1} / ${widget.photos.length}', style: authText(12, weight: 700, color: Colors.white)),
+            ),
           ),
       ]),
     );

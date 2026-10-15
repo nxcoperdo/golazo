@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/location.dart';
+import '../../core/widgets/auth_ui.dart';
+import '../../core/widgets/design.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/providers.dart';
 
@@ -27,10 +29,12 @@ class _State extends ConsumerState<CourtFormScreen> {
   int _open = 8;
   int _close = 23;
   bool _covered = false;
+  int _courtType = 5;
   bool _deposit = false;
   int _percent = 30;
   bool _busy = false;
   bool _locating = false;
+  bool _manualCoords = false;
 
   @override
   void dispose() {
@@ -40,20 +44,19 @@ class _State extends ConsumerState<CourtFormScreen> {
     super.dispose();
   }
 
+  bool get _hasCoords => _lat.text.trim().isNotEmpty && _lng.text.trim().isNotEmpty;
+
   Future<void> _useLocation() async {
     setState(() => _locating = true);
     try {
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-        if (mounted) showSnack(context, 'Sin permiso de ubicación. Escribe las coordenadas a mano.');
-        return;
+      final p = await ref.read(locationProvider)();
+      _lat.text = p.lat.toStringAsFixed(6);
+      _lng.text = p.lng.toStringAsFixed(6);
+    } on LocationUnavailable {
+      if (mounted) {
+        setState(() => _manualCoords = true);
+        showSnack(context, 'No se pudo obtener la ubicación. Escribe las coordenadas a mano.');
       }
-      final p = await Geolocator.getCurrentPosition();
-      _lat.text = p.latitude.toStringAsFixed(6);
-      _lng.text = p.longitude.toStringAsFixed(6);
-    } catch (_) {
-      if (mounted) showSnack(context, 'No se pudo obtener la ubicación. Escribe las coordenadas a mano.');
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -66,6 +69,11 @@ class _State extends ConsumerState<CourtFormScreen> {
   }
 
   Future<void> _submit() async {
+    if (!_hasCoords) {
+      setState(() => _manualCoords = true);
+      showSnack(context, 'Usa tu ubicación actual o escribe las coordenadas.');
+      return;
+    }
     if (!_form.currentState!.validate()) return;
     if (_close <= _open) {
       showSnack(context, 'El cierre debe ser después de la apertura');
@@ -81,6 +89,7 @@ class _State extends ConsumerState<CourtFormScreen> {
         'lat': double.parse(_lat.text.replaceAll(',', '.')),
         'lng': double.parse(_lng.text.replaceAll(',', '.')),
         'covered': _covered,
+        'courtType': _courtType,
         'pricePerHour': int.parse(_price.text.replaceAll(RegExp(r'\D'), '')),
         'openHour': _open,
         'closeHour': _close,
@@ -98,139 +107,183 @@ class _State extends ConsumerState<CourtFormScreen> {
     }
   }
 
+  Future<void> _pickHour(bool opening) async {
+    final v = await showPickSheet<int>(
+      context,
+      title: opening ? 'Abre' : 'Cierra',
+      selected: opening ? _open : _close,
+      options: [for (var h = opening ? 0 : 1; h <= (opening ? 23 : 24); h++) (h, hourLabel(h))],
+    );
+    if (v != null) {
+      setState(() {
+        if (opening) {
+          _open = v;
+        } else {
+          _close = v;
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cities = ref.watch(citiesProvider).value ?? const <String>[];
-    return Scaffold(
-      appBar: AppBar(title: const Text('Nueva cancha')),
-      body: Form(
+    return AppPage(
+      kicker: 'Nueva',
+      title: 'Crear cancha',
+      onBack: () => context.canPop() ? context.pop() : context.go('/owner?tab=2'),
+      child: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          TextFormField(
+        child: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 24).withNav(context), children: [
+          AuthField(
+            label: 'Nombre',
+            icon: Icons.sports_soccer,
+            hint: 'Nombre de la cancha',
             controller: _name,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Nombre de la cancha'),
+            textInputAction: TextInputAction.next,
             validator: (v) => (v == null || v.trim().length < 3) ? 'Mínimo 3 letras' : null,
           ),
-          const SizedBox(height: 12),
-          TextFormField(
+          const SizedBox(height: 16),
+          AuthField(
+            label: 'Ciudad',
+            icon: Icons.place_outlined,
+            hint: 'Selecciona o escribe una ciudad',
             controller: _city,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Ciudad'),
+            textInputAction: TextInputAction.next,
             validator: (v) => (v == null || v.trim().length < 2) ? 'Obligatoria' : null,
           ),
-          if (cities.isNotEmpty)
-            Wrap(spacing: 8, children: [
+          if (cities.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 4, children: [
               for (final c in cities) ActionChip(label: Text(c), onPressed: () => setState(() => _city.text = c)),
             ]),
-          const SizedBox(height: 12),
-          TextFormField(
+          ],
+          const SizedBox(height: 16),
+          AuthField(
+            label: 'Dirección',
+            icon: Icons.map_outlined,
+            hint: 'Calle, número y barrio',
             controller: _address,
-            decoration: const InputDecoration(labelText: 'Dirección'),
+            textInputAction: TextInputAction.next,
             validator: (v) => (v == null || v.trim().length < 3) ? 'Obligatoria' : null,
           ),
-          const SizedBox(height: 12),
-          TextFormField(
+          const SizedBox(height: 16),
+          AuthField(
+            label: 'Descripción (opcional)',
+            icon: Icons.notes,
+            hint: 'Iluminación, camerinos, parqueadero…',
             controller: _description,
             maxLines: 3,
             maxLength: 1000,
-            decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
           ),
           const SizedBox(height: 8),
-          Text('Ubicación', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          const Text('Para que te encuentren por cercanía. Si estás en la cancha, usa el botón.'),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _locating ? null : _useLocation,
-            icon: _locating
-                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.my_location),
-            label: const Text('Usar mi ubicación actual'),
+          Material(
+            color: const Color(0xFFE8F2E4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: AuthColors.primary.withValues(alpha: 0.15)),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: _locating ? null : _useLocation,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  if (_locating)
+                    const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
+                  else
+                    const Icon(Icons.my_location, size: 17, color: AuthColors.primary),
+                  const SizedBox(width: 8),
+                  Text(_hasCoords ? 'Ubicación lista · usar otra vez' : 'Usar mi ubicación actual',
+                      style: authText(14, weight: 800, color: AuthColors.primary)),
+                ]),
+              ),
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: TextFormField(
-                controller: _lat,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                decoration: const InputDecoration(labelText: 'Latitud'),
-                validator: (v) => _coord(v, -90, 90),
-              ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _manualCoords = !_manualCoords),
+              child: Text(_manualCoords ? 'Ocultar coordenadas' : 'Ingresar coordenadas a mano'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextFormField(
-                controller: _lng,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                decoration: const InputDecoration(labelText: 'Longitud'),
-                validator: (v) => _coord(v, -180, 180),
+          ),
+          if (_manualCoords) ...[
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: AuthField(
+                  label: 'Latitud',
+                  icon: Icons.explore_outlined,
+                  controller: _lat,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                  validator: (v) => _coord(v, -90, 90),
+                ),
               ),
-            ),
-          ]),
-          const SizedBox(height: 12),
-          TextFormField(
+              const SizedBox(width: 12),
+              Expanded(
+                child: AuthField(
+                  label: 'Longitud',
+                  icon: Icons.explore_outlined,
+                  controller: _lng,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                  validator: (v) => _coord(v, -180, 180),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+          ],
+          AuthField(
+            label: 'Precio por hora (COP)',
+            icon: Icons.attach_money,
+            hint: '90000',
             controller: _price,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Precio por hora (COP)', prefixText: r'$ '),
             validator: (v) {
               final n = int.tryParse((v ?? '').replaceAll(RegExp(r'\D'), ''));
               return (n == null || n < 1000 || n > 1000000) ? 'Entre \$1.000 y \$1.000.000' : null;
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(children: [
-            Expanded(
-              child: DropdownButtonFormField<int>(
-                initialValue: _open,
-                decoration: const InputDecoration(labelText: 'Abre'),
-                items: [for (var h = 0; h < 24; h++) DropdownMenuItem(value: h, child: Text(hourLabel(h)))],
-                onChanged: (v) => setState(() => _open = v!),
-              ),
-            ),
+            Expanded(child: PickTile(label: 'Abre', value: hourLabel(_open), onTap: () => _pickHour(true))),
             const SizedBox(width: 12),
-            Expanded(
-              child: DropdownButtonFormField<int>(
-                initialValue: _close,
-                decoration: const InputDecoration(labelText: 'Cierra'),
-                items: [for (var h = 1; h <= 24; h++) DropdownMenuItem(value: h, child: Text(hourLabel(h)))],
-                onChanged: (v) => setState(() => _close = v!),
-              ),
-            ),
+            Expanded(child: PickTile(label: 'Cierra', value: hourLabel(_close), onTap: () => _pickHour(false))),
           ]),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Cancha techada'),
-            value: _covered,
-            onChanged: (v) => setState(() => _covered = v),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Exigir anticipo'),
-            subtitle: const Text('El jugador paga un porcentaje por transferencia para confirmar.'),
+          const SizedBox(height: 16),
+          CourtTypePicker(value: _courtType, onChanged: (t) => setState(() => _courtType = t)),
+          const SizedBox(height: 16),
+          ToggleRow(title: 'Cancha techada', value: _covered, onChanged: (v) => setState(() => _covered = v)),
+          const SizedBox(height: 12),
+          ToggleRow(
+            title: 'Exigir anticipo',
+            subtitle: 'El jugador paga un porcentaje por transferencia para confirmar.',
             value: _deposit,
             onChanged: (v) => setState(() => _deposit = v),
           ),
-          if (_deposit)
-            Slider(
-              min: 10,
-              max: 100,
-              divisions: 9,
-              label: '$_percent%',
-              value: _percent.toDouble(),
-              onChanged: (v) => setState(() => _percent = v.round()),
+          if (_deposit) ...[
+            const SizedBox(height: 12),
+            PickTile(
+              label: 'Porcentaje de anticipo',
+              value: '$_percent %',
+              onTap: () async {
+                final v = await showPickSheet<int>(
+                  context,
+                  title: 'Porcentaje de anticipo',
+                  selected: _percent,
+                  options: [for (var p = 10; p <= 100; p += 10) (p, '$p %')],
+                );
+                if (v != null) setState(() => _percent = v);
+              },
             ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: _busy
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Crear cancha'),
-          ),
+          ],
+          const SizedBox(height: 24),
+          PrimaryButton(label: 'Crear cancha', busy: _busy, onPressed: _submit),
           const SizedBox(height: 12),
           Text(
             'Quedará oculta hasta que pagues la mensualidad. Después podrás subir fotos y tus cuentas de cobro.',
-            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+            style: authText(11, weight: 500, color: const Color(0xFF7D8982), height: 1.5),
           ),
         ]),
       ),

@@ -2,6 +2,8 @@
     <!-- Sin esto la app no puede hablar con el servidor en una versión de producción
          (Flutter solo lo agrega en debug/profile). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: permiso para mostrar notificaciones push. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application

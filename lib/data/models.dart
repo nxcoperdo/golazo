@@ -82,6 +82,9 @@ const courtTypes = [5, 6, 7, 8, 11];
 
 String courtTypeLabel(int n) => 'Fútbol $n';
 
+/// "Fútbol 5" o, si ofrece varios, "Fútbol 5 · 7".
+String courtTypesLabel(List<int> types) => 'Fútbol ${(List.of(types)..sort()).join(' · ')}';
+
 class Court {
   const Court({
     required this.id,
@@ -89,7 +92,7 @@ class Court {
     required this.city,
     required this.address,
     required this.covered,
-    this.courtType = 5,
+    this.types = const [5],
     required this.pricePerHour,
     required this.openHour,
     required this.closeHour,
@@ -114,7 +117,8 @@ class Court {
   final String city;
   final String address;
   final bool covered;
-  final int courtType;
+  /// Tipos de juego que ofrece (Fútbol 5, 7…). Siempre trae al menos uno.
+  final List<int> types;
   final int pricePerHour;
   final int openHour;
   final int closeHour;
@@ -131,6 +135,15 @@ class Court {
   final List<PaymentMethod> paymentMethods;
   final CourtSubscription? subscription;
 
+  /// Lee `courtTypes`; con servidores antiguos solo viene `courtType` (uno).
+  static List<int> _types(Map<String, dynamic> j) {
+    final raw = j['courtTypes'];
+    final list = raw is List && raw.isNotEmpty
+        ? [for (final t in raw) _int(t)]
+        : [j['courtType'] == null ? 5 : _int(j['courtType'])];
+    return list..sort();
+  }
+
   factory Court.fromJson(Map<String, dynamic> j) {
     final photosRaw = (j['photos'] as List?) ?? const [];
     final sub = j['subscription'] as Map<String, dynamic>?;
@@ -141,7 +154,7 @@ class Court {
       city: j['city'] as String,
       address: j['address'] as String,
       covered: j['covered'] as bool,
-      courtType: j['courtType'] == null ? 5 : _int(j['courtType']),
+      types: _types(j),
       pricePerHour: _int(j['pricePerHour']),
       openHour: _int(j['openHour']),
       closeHour: _int(j['closeHour']),

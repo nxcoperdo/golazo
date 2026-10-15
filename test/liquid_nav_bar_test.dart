@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golazo/core/widgets/design.dart';
 import 'package:golazo/core/widgets/liquid_nav_bar.dart';
 
 Widget _app(ValueChanged<int> onChanged, {int index = 0}) => MaterialApp(
@@ -52,5 +53,33 @@ void main() {
   testWidgets('muestra el contador de avisos', (t) async {
     await t.pumpWidget(_app((_) {}));
     expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('el botón flotante de AppPage queda por encima de la barra de cristal', (t) async {
+    t.view.physicalSize = const Size(411, 891);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(
+        extendBody: true,
+        body: AppPage(
+          title: 'Reservas',
+          fab: PillFab(label: '+ Bloquear horas', onTap: () {}),
+          child: const SizedBox.expand(),
+        ),
+        bottomNavigationBar: LiquidGlassNavBar(
+          index: 0,
+          onChanged: (_) {},
+          items: const [
+            NavItem(label: 'Canchas', icon: Icons.sports_soccer),
+            NavItem(label: 'Perfil', icon: Icons.person),
+          ],
+        ),
+      ),
+    ));
+    await t.pumpAndSettle();
+    final fab = t.getRect(find.text('+ Bloquear horas'));
+    final nav = t.getRect(find.byType(LiquidGlassNavBar));
+    expect(fab.bottom, lessThanOrEqualTo(nav.top), reason: 'el botón no debe quedar debajo de la barra');
   });
 }

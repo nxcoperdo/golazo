@@ -29,7 +29,7 @@ class _State extends ConsumerState<CourtFormScreen> {
   int _open = 8;
   int _close = 23;
   bool _covered = false;
-  int _courtType = 5;
+  List<int> _courtTypes = [5];
   bool _deposit = false;
   int _percent = 30;
   bool _busy = false;
@@ -89,7 +89,7 @@ class _State extends ConsumerState<CourtFormScreen> {
         'lat': double.parse(_lat.text.replaceAll(',', '.')),
         'lng': double.parse(_lng.text.replaceAll(',', '.')),
         'covered': _covered,
-        'courtType': _courtType,
+        'courtTypes': _courtTypes,
         'pricePerHour': int.parse(_price.text.replaceAll(RegExp(r'\D'), '')),
         'openHour': _open,
         'closeHour': _close,
@@ -251,7 +251,7 @@ class _State extends ConsumerState<CourtFormScreen> {
             Expanded(child: PickTile(label: 'Cierra', value: hourLabel(_close), onTap: () => _pickHour(false))),
           ]),
           const SizedBox(height: 16),
-          CourtTypePicker(value: _courtType, onChanged: (t) => setState(() => _courtType = t)),
+          CourtTypePicker(value: _courtTypes, onChanged: (t) => setState(() => _courtTypes = t)),
           const SizedBox(height: 16),
           ToggleRow(title: 'Cancha techada', value: _covered, onChanged: (v) => setState(() => _covered = v)),
           const SizedBox(height: 12),

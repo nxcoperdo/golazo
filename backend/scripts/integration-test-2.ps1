@@ -216,11 +216,11 @@ Sql "UPDATE bookings SET created_at = now() - interval '2 hours' WHERE id = '$($
 $j = (Call Post /admin/jobs/run $null $at).body
 Check "libera reserva sin comprobante tras 30 min" ($j.expiredUnpaid -ge 1 -and (Call Get "/bookings/$($bx.id)" $null $p2t).body.status -eq 'cancelled') "$($j | ConvertTo-Json -Compress)"
 Check "el jugador fue avisado" (@((Call Get /notifications $null $p2t).body.items | Where-Object { $_.title -eq 'Reserva cancelada' }).Count -eq 1) ""
-Sql "UPDATE subscription_periods SET starts_on = current_date - 28, ends_on = current_date + 2, reminded_at = NULL WHERE court_id = '$court';" | Out-Null
+Sql "UPDATE subscription_periods SET starts_on = (now() AT TIME ZONE 'America/Bogota')::date - 28, ends_on = (now() AT TIME ZONE 'America/Bogota')::date + 2, reminded_at = NULL WHERE court_id = '$court';" | Out-Null
 $j = (Call Post /admin/jobs/run $null $at).body
 Check "avisa 3 días antes del vencimiento" ($j.subscriptionReminders -ge 1) ($j | ConvertTo-Json -Compress)
 Check "el aviso se envía una sola vez" ((Call Post /admin/jobs/run $null $at).body.subscriptionReminders -eq 0) ""
-Sql "UPDATE subscription_periods SET starts_on = current_date - 40, ends_on = current_date - 10 WHERE court_id = '$court';" | Out-Null
+Sql "UPDATE subscription_periods SET starts_on = (now() AT TIME ZONE 'America/Bogota')::date - 40, ends_on = (now() AT TIME ZONE 'America/Bogota')::date - 10 WHERE court_id = '$court';" | Out-Null
 $j = (Call Post /admin/jobs/run $null $at).body
 Check "mensualidad vencida: suspende la cancha" ($j.suspendedCourts -ge 1 -and -not (Has (Call Get '/courts?city=Bogot%C3%A1' $null $null).body $court)) ($j | ConvertTo-Json -Compress)
 Check "el dueño fue avisado" (@((Call Get /notifications $null $ot).body.items | Where-Object { $_.title -like 'Tu cancha dejó de ser visible*' }).Count -eq 1) ""

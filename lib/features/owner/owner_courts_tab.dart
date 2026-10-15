@@ -100,7 +100,7 @@ class _CourtCard extends StatelessWidget {
                       Container(width: 10, height: 10, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
                     ]),
                     const SizedBox(height: 4),
-                    Text('${c.city} · ${courtTypeLabel(c.courtType)} · ${cop(c.pricePerHour)}/h',
+                    Text('${c.city} · ${courtTypesLabel(c.types)} · ${cop(c.pricePerHour)}/h',
                         maxLines: 1, overflow: TextOverflow.ellipsis, style: authText(12, weight: 500, color: const Color(0xFF6C7B72))),
                     const SizedBox(height: 12),
                     Text(courtStateLabel(c.status), style: authText(10, weight: 800, color: text)),

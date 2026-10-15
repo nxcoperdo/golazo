@@ -7,7 +7,7 @@ import type { CreateCourtDto, ListCourtsQuery, PaymentMethodDto, UpdateCourtDto 
 
 /** Columnas públicas de una cancha, con foto principal, calificación y (opcional) distancia. */
 const COURT_SELECT = (distanceSql: string) => `
-  c.id, c.name, c.description, c.city, c.address, c.covered, c.court_type AS "courtType",
+  c.id, c.name, c.description, c.city, c.address, c.covered, c.court_types AS "courtTypes", c.court_types[1] AS "courtType",
   c.price_per_hour AS "pricePerHour", c.open_hour AS "openHour", c.close_hour AS "closeHour",
   c.requires_deposit AS "requiresDeposit", c.deposit_percent AS "depositPercent",
   c.status, ST_Y(c.location::geometry) AS lat, ST_X(c.location::geometry) AS lng,
@@ -16,6 +16,12 @@ const COURT_SELECT = (distanceSql: string) => `
      WHERE r.court_id = c.id AND r.hidden_at IS NULL) AS rating,
   (SELECT COUNT(*)::int FROM reviews r WHERE r.court_id = c.id AND r.hidden_at IS NULL) AS "reviewCount",
   ${distanceSql} AS "distanceM"`;
+
+/** Tipos de la cancha (ordenados, sin repetir) a partir de `courtTypes` o del `courtType` antiguo. */
+function resolveTypes(dto: { courtTypes?: number[]; courtType?: number }): number[] | undefined {
+  const raw = dto.courtTypes ?? (dto.courtType != null ? [dto.courtType] : undefined);
+  return raw ? [...new Set(raw)].sort((a, b) => a - b) : undefined;
+}
 
 const PHOTO_URL = '/v1/files/courts/';
 const MAX_PHOTOS = 8;
@@ -39,7 +45,7 @@ export class CourtsService {
     if (q.city) where.push(`c.city = ${p(q.city)}`);
     if (q.maxPrice != null) where.push(`c.price_per_hour <= ${p(q.maxPrice)}`);
     if (q.covered != null) where.push(`c.covered = ${p(q.covered)}`);
-    if (q.courtType != null) where.push(`c.court_type = ${p(q.courtType)}`);
+    if (q.courtType != null) where.push(`${p(q.courtType)}::smallint = ANY(c.court_types)`);
 
     let distance = 'NULL::float8';
     let order = 'c.name';
@@ -112,12 +118,12 @@ export class CourtsService {
       throw new BadRequestException({ code: 'BAD_HOURS', message: 'El cierre debe ser después de la apertura' });
     }
     const { rows } = await this.db.query<{ id: string }>(
-      `INSERT INTO courts (owner_id, name, description, city, address, location, covered, court_type,
+      `INSERT INTO courts (owner_id, name, description, city, address, location, covered, court_types,
                            price_per_hour, open_hour, close_hour, requires_deposit, deposit_percent)
        VALUES ($1,$2,$3,$4,$5, ST_SetSRID(ST_MakePoint($6::float8,$7::float8),4326)::geography,
                $8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [ownerId, dto.name.trim(), dto.description ?? null, dto.city.trim(), dto.address.trim(), dto.lng, dto.lat,
-       dto.covered, dto.courtType ?? 5, dto.pricePerHour, dto.openHour, dto.closeHour, dto.requiresDeposit, dto.depositPercent ?? 30],
+       dto.covered, resolveTypes(dto) ?? [5], dto.pricePerHour, dto.openHour, dto.closeHour, dto.requiresDeposit, dto.depositPercent ?? 30],
     );
     return this.ownerDetail(ownerId, rows[0]!.id);
   }
@@ -184,7 +190,8 @@ export class CourtsService {
     if (dto.city !== undefined) set('city', dto.city.trim());
     if (dto.address !== undefined) set('address', dto.address.trim());
     if (dto.covered !== undefined) set('covered', dto.covered);
-    if (dto.courtType !== undefined) set('court_type', dto.courtType);
+    const types = resolveTypes(dto);
+    if (types !== undefined) set('court_types', types);
     if (dto.pricePerHour !== undefined) set('price_per_hour', dto.pricePerHour);
     if (dto.openHour !== undefined) set('open_hour', dto.openHour);
     if (dto.closeHour !== undefined) set('close_hour', dto.closeHour);

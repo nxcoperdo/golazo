@@ -42,7 +42,7 @@ WITH p AS (
   SELECT 'subscription', c.id, c.owner_id, 100000, 'seed', 'approved', now() FROM courts c WHERE c.id = '$id'
   RETURNING id, court_id)
 INSERT INTO subscription_periods (court_id, payment_id, starts_on, ends_on)
-SELECT court_id, id, current_date, current_date + 30 FROM p;
+SELECT court_id, id, (now() AT TIME ZONE 'America/Bogota')::date, (now() AT TIME ZONE 'America/Bogota')::date + 30 FROM p;
 UPDATE courts SET status = 'active' WHERE id = '$id';
 "@ | Out-Null
 }

@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Golazo usa la cámara para fotografiar tus comprobantes de pago y las fotos de tu cancha.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Golazo usa tus fotos para adjuntar comprobantes de pago y fotos de tu cancha.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Golazo guarda fotos que tomes desde la app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Golazo usa tu ubicación para mostrarte canchas cercanas.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

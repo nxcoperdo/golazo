@@ -43,7 +43,7 @@ CREATE TABLE courts (
   address          text NOT NULL,
   location         geography(Point,4326) NOT NULL,
   covered          boolean NOT NULL,
-  court_type       smallint NOT NULL DEFAULT 5 CHECK (court_type IN (5,6,7,8,11)),  -- Fútbol 5/6/7/8/11 (migración 004)
+  court_types      smallint[] NOT NULL DEFAULT '{5}' CHECK (cardinality(court_types) BETWEEN 1 AND 5 AND court_types <@ ARRAY[5,6,7,8,11]::smallint[]),  -- tipos de juego (migración 005; antes court_type)
   price_per_hour   integer NOT NULL CHECK (price_per_hour > 0),   -- COP
   open_hour        smallint NOT NULL CHECK (open_hour BETWEEN 0 AND 23),
   close_hour       smallint NOT NULL CHECK (close_hour BETWEEN 1 AND 24),

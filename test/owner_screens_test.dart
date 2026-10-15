@@ -155,13 +155,13 @@ class OwnerApi extends FakeApi {
       calls.add('sub:$courtId:$filename');
 }
 
-Court mkOwnerCourt(String id, String name, {CourtStatus status = CourtStatus.active, CourtSubscription? sub, List<PaymentMethod> methods = const [], int type = 7}) => Court(
+Court mkOwnerCourt(String id, String name, {CourtStatus status = CourtStatus.active, CourtSubscription? sub, List<PaymentMethod> methods = const [], List<int> types = const [7]}) => Court(
       id: id,
       name: name,
       city: 'Bogotá',
       address: 'Cra 7 # 10-20',
       covered: true,
-      courtType: type,
+      types: types,
       pricePerHour: 90000,
       openHour: 8,
       closeHour: 23,
@@ -414,7 +414,7 @@ void main() {
       expect(api.createdCourt, isNotNull);
       expect(api.createdCourt!['name'], 'La Bombonera 5');
       expect(api.createdCourt!['lat'], 4.711);
-      expect(api.createdCourt!['courtType'], 7);
+      expect(api.createdCourt!['courtTypes'], [5, 7]); // Fútbol 5 (por defecto) + el 7 marcado
       expect(api.createdCourt!['pricePerHour'], 90000);
       expect(api.createdCourt!['requiresDeposit'], true);
       expect(api.createdCourt!['depositPercent'], 30);
@@ -502,7 +502,7 @@ void main() {
       await t.tap(find.text('Guardar cambios'));
       await t.pumpAndSettle();
       expect(api.updated!['name'], 'La Bombonera 6');
-      expect(api.updated!['courtType'], 7);
+      expect(api.updated!['courtTypes'], [7]);
       expect(api.updated!['requiresDeposit'], true);
     });
 
@@ -534,6 +534,26 @@ void main() {
       await t.ensureVisible(find.text('Pagar mensualidad'));
       expect(t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Pagar mensualidad')).onPressed, isNull);
     });
+  });
+
+  testWidgets('selector de tipos: se pueden marcar varios y siempre queda uno', (t) async {
+    var value = [5];
+    await t.pumpWidget(StatefulBuilder(builder: (context, setState) => MaterialApp(
+          home: Scaffold(body: CourtTypePicker(value: value, onChanged: (v) => setState(() => value = v))),
+        )));
+    await t.tap(find.text('Fútbol 7'));
+    await t.pump();
+    await t.tap(find.text('Fútbol 11'));
+    await t.pump();
+    expect(value, [5, 7, 11]);
+    await t.tap(find.text('Fútbol 5'));
+    await t.pump();
+    expect(value, [7, 11]);
+    await t.tap(find.text('Fútbol 11'));
+    await t.pump();
+    await t.tap(find.text('Fútbol 7')); // intento quitar el último: no se deja
+    await t.pump();
+    expect(value, [7]);
   });
 
   test('longDayLabel y monthShort', () {

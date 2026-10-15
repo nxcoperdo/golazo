@@ -29,12 +29,16 @@ class AppPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // El Scaffold coloca el botón flotante con `viewPadding` y no ve el espacio que reserva la barra
+    // de cristal del shell (`extendBody`): se lo sumamos para que no quede debajo de ella.
+    final media = MediaQuery.of(context);
+    final navExtra = (media.padding.bottom - media.viewPadding.bottom).clamp(0.0, double.infinity);
     return Theme(
       data: authTheme(Theme.of(context)),
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.dark,
         child: Scaffold(
-          floatingActionButton: fab,
+          floatingActionButton: fab == null ? null : Padding(padding: EdgeInsets.only(bottom: navExtra + 4), child: fab),
           body: Column(children: [
             Container(
               decoration: BoxDecoration(

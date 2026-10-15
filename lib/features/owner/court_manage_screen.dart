@@ -154,7 +154,7 @@ class _State extends ConsumerState<CourtManageScreen> {
               Text('Datos de la cancha', style: authText(16, weight: 800)),
               const SizedBox(height: 8),
               Text(
-                '${courtTypeLabel(c.courtType)} · ${c.covered ? 'Techada' : 'Al aire libre'} · ${cop(c.pricePerHour)}/h · '
+                '${courtTypesLabel(c.types)} · ${c.covered ? 'Techada' : 'Al aire libre'} · ${cop(c.pricePerHour)}/h · '
                 '${hourLabel(c.openHour)} – ${hourLabel(c.closeHour)}'
                 '${c.requiresDeposit ? ' · Anticipo ${c.depositPercent} %' : ''}',
                 style: authText(12, weight: 500, color: const Color(0xFF6C7B72), height: 1.5),
@@ -368,7 +368,7 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
   late int _open = widget.court.openHour;
   late int _close = widget.court.closeHour;
   late bool _covered = widget.court.covered;
-  late int _courtType = widget.court.courtType;
+  late List<int> _courtTypes = List.of(widget.court.types);
   late bool _deposit = widget.court.requiresDeposit;
   late int _percent = widget.court.depositPercent;
 
@@ -394,7 +394,7 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
       'openHour': _open,
       'closeHour': _close,
       'covered': _covered,
-      'courtType': _courtType,
+      'courtTypes': _courtTypes,
       'requiresDeposit': _deposit,
       if (_deposit) 'depositPercent': _percent,
     });
@@ -456,7 +456,7 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
             Expanded(child: PickTile(label: 'Cierra', value: hourLabel(_close), onTap: () => _pickHour(false))),
           ]),
           const SizedBox(height: 16),
-          CourtTypePicker(value: _courtType, onChanged: (t) => setState(() => _courtType = t)),
+          CourtTypePicker(value: _courtTypes, onChanged: (t) => setState(() => _courtTypes = t)),
           const SizedBox(height: 16),
           ToggleRow(title: 'Cancha techada', value: _covered, onChanged: (v) => setState(() => _covered = v)),
           const SizedBox(height: 12),

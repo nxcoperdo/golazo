@@ -464,7 +464,7 @@ class _CourtCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Positioned(left: 16, top: 16, child: _Badge(courtTypeLabel(court.courtType), lime: true)),
+                  Positioned(left: 16, top: 16, child: _Badge(courtTypesLabel(court.types), lime: true)),
                   if (dist != null)
                     Positioned(
                       left: 16,

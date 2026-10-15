@@ -109,7 +109,7 @@ class _State extends ConsumerState<CourtDetailScreen> {
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Wrap(spacing: 8, runSpacing: 8, children: [
-            _Tag(courtTypeLabel(c.courtType), lime: true),
+            _Tag(courtTypesLabel(c.types), lime: true),
             if (c.covered) const _Tag('Techada'),
             if (c.requiresDeposit) _Tag('Anticipo ${c.depositPercent} %'),
           ]),
@@ -181,7 +181,7 @@ class _State extends ConsumerState<CourtDetailScreen> {
               child: _InfoTile(
                 icon: Icons.sports_soccer,
                 label: 'Tipo',
-                value: '${courtTypeLabel(c.courtType)} · ${c.covered ? 'Techada' : 'Aire libre'}',
+                value: '${courtTypesLabel(c.types)} · ${c.covered ? 'Techada' : 'Aire libre'}',
               ),
             ),
           ]),

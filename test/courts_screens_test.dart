@@ -13,14 +13,14 @@ import 'package:golazo/features/booking/court_detail_screen.dart';
 import 'package:golazo/features/player/courts_screen.dart';
 
 Court mkCourt(String id, String name, String city,
-        {bool covered = false, int type = 5, int price = 80000, bool deposit = false, int reviews = 0}) =>
+        {bool covered = false, List<int> types = const [5], int price = 80000, bool deposit = false, int reviews = 0}) =>
     Court(
       id: id,
       name: name,
       city: city,
       address: 'Cra 7 # 10-20',
       covered: covered,
-      courtType: type,
+      types: types,
       pricePerHour: price,
       openHour: 8,
       closeHour: 23,
@@ -39,7 +39,7 @@ class FakeApi extends Fake implements GolazoApi {
   final AppUser? user;
 
   final all = [
-    mkCourt('1', 'La Bombonera', 'Bogotá', covered: true, type: 7, price: 90000, deposit: true, reviews: 2),
+    mkCourt('1', 'La Bombonera', 'Bogotá', covered: true, types: [5, 7], price: 90000, deposit: true, reviews: 2),
     mkCourt('2', 'Golazo Arena', 'Bogotá', price: 70000),
     mkCourt('3', 'El Potrero', 'Medellín', covered: true, price: 100000),
   ];
@@ -74,7 +74,7 @@ class FakeApi extends Fake implements GolazoApi {
         .where((c) =>
             (city == null || c.city == city) &&
             (covered == null || c.covered == covered) &&
-            (courtType == null || c.courtType == courtType) &&
+            (courtType == null || c.types.contains(courtType)) &&
             (maxPrice == null || c.pricePerHour <= maxPrice))
         .toList();
   }
@@ -194,7 +194,7 @@ void main() {
       expect(find.text('Encuentra tu cancha'), findsOneWidget);
       expect(find.text('3 canchas disponibles'), findsOneWidget);
       expect(find.text('La Bombonera'), findsOneWidget);
-      expect(find.text('Fútbol 7'), findsOneWidget);
+      expect(find.text('Fútbol 5 · 7'), findsOneWidget); // ofrece dos tipos
       expect(find.text('Anticipo 30 %'), findsOneWidget);
       expect(find.textContaining(r'$90.000', findRichText: true), findsOneWidget);
     });
@@ -317,7 +317,7 @@ void main() {
     testWidgets('muestra los datos de la cancha y las reseñas', (t) async {
       await pumpScreen(t, const CourtDetailScreen(courtId: '1'), FakeApi(user: withPhone));
       expect(find.text('La Bombonera'), findsOneWidget);
-      expect(find.text('Fútbol 7'), findsWidgets);
+      expect(find.text('Fútbol 5 · 7'), findsWidgets);
       expect(find.text('Anticipo 30 %'), findsOneWidget);
       expect(find.text('Sobre la cancha'), findsOneWidget);
       expect(find.text('8:00 AM – 11:00 PM'), findsOneWidget);
@@ -422,8 +422,10 @@ void main() {
           'depositPercent': 30, 'status': 'active', 'lat': 3.4, 'lng': -76.5,
           'courtType': ?type,
         };
-    expect(Court.fromJson(json(7)).courtType, 7);
-    expect(Court.fromJson(json()).courtType, 5);
+    expect(Court.fromJson(json(7)).types, [7]); // servidor antiguo: solo courtType
+    expect(Court.fromJson(json()).types, [5]);
+    expect(Court.fromJson({...json(), 'courtTypes': [7, 5]}).types, [5, 7]); // ordenados
     expect(courtTypeLabel(11), 'Fútbol 11');
+    expect(courtTypesLabel([7, 5]), 'Fútbol 5 · 7');
   });
 }

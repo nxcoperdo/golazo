@@ -36,7 +36,7 @@ WITH p AS (
   SELECT 'subscription', c.id, c.owner_id, 100000, 'seed', 'approved', now() FROM courts c WHERE c.id = '$id'
   RETURNING id, court_id)
 INSERT INTO subscription_periods (court_id, payment_id, starts_on, ends_on)
-SELECT court_id, id, current_date, current_date + 30 FROM p;
+SELECT court_id, id, (now() AT TIME ZONE 'America/Bogota')::date, (now() AT TIME ZONE 'America/Bogota')::date + 30 FROM p;
 UPDATE courts SET status = 'active' WHERE id = '$id';
 "@ | Out-Null
 }
@@ -54,7 +54,7 @@ Check "jugador con rol player" ($a.user.role -eq 'player') $a.user.role
 $ot = $own.accessToken; $at = $a.accessToken; $bt = $b.accessToken
 
 Write-Host "== Canchas (dueño)"
-$c1 = Call Post /owner/courts @{name='Cancha Con Anticipo';city="Bogotá";address='Cra 7 # 10-20';lat=4.711;lng=-74.072;covered=$true;courtType=7;pricePerHour=90000;openHour=0;closeHour=24;requiresDeposit=$true;depositPercent=40} $ot
+$c1 = Call Post /owner/courts @{name='Cancha Con Anticipo';city="Bogotá";address='Cra 7 # 10-20';lat=4.711;lng=-74.072;covered=$true;courtTypes=@(7,5);pricePerHour=90000;openHour=0;closeHour=24;requiresDeposit=$true;depositPercent=40} $ot
 Check "crear cancha -> 201/200" ($c1.code -eq 200 -or $c1.code -eq 201) "$($c1.code) $($c1.raw)"
 Check "nace en estado pending" ($c1.body.status -eq 'pending') $c1.body.status
 $court1 = $c1.body.id
@@ -83,17 +83,26 @@ Check "distancia calculada" ($near.body[0].distanceM -gt 0) ""
 Check "filtro techada" (@((Call Get '/courts?covered=true' $null $null).body | Where-Object { $_.id -eq $court2 }).Count -eq 0) ""
 Check "filtro precio máximo" (@((Call Get '/courts?maxPrice=80000' $null $null).body | Where-Object { $_.id -eq $court1 }).Count -eq 0) ""
 Check "parámetro inválido -> 400" ((Call Get '/courts?maxPrice=abc' $null $null).code -eq 400) ""
-Write-Host "== Tipo de cancha"
-Check "cancha creada con courtType=7" ($c1.body.courtType -eq 7) $c1.body.courtType
-Check "sin courtType queda en Fútbol 5" ($c2.body.courtType -eq 5) $c2.body.courtType
-Check "detalle público trae el tipo" ((Call Get "/courts/$court1" $null $null).body.courtType -eq 7) ""
-Check "filtro courtType=7 la incluye y excluye la otra" (@((Call Get '/courts?courtType=7' $null $null).body | Where-Object { $_.id -eq $court1 }).Count -eq 1 -and @((Call Get '/courts?courtType=7' $null $null).body | Where-Object { $_.id -eq $court2 }).Count -eq 0) ""
-Check "filtro courtType=5 trae la de Fútbol 5" (@((Call Get '/courts?courtType=5' $null $null).body | Where-Object { $_.id -eq $court2 }).Count -eq 1) ""
+Write-Host "== Tipos de cancha (varios por cancha)"
+Check "cancha creada con tipos 5 y 7 (ordenados)" (($c1.body.courtTypes -join ',') -eq '5,7') ($c1.body.courtTypes -join ',')
+Check "courtType (compatibilidad) = el menor" ($c1.body.courtType -eq 5) $c1.body.courtType
+Check "sin tipos queda en Fútbol 5" (($c2.body.courtTypes -join ',') -eq '5') ($c2.body.courtTypes -join ',')
+Check "detalle público trae los tipos" ((((Call Get "/courts/$court1" $null $null).body.courtTypes) -join ',') -eq '5,7') ""
+function Has($path, $id) { @((Call Get $path $null $null).body | Where-Object { $_.id -eq $id }).Count -eq 1 }
+Check "filtro courtType=7: la de 5+7 sí, la de solo 5 no" ((Has '/courts?courtType=7' $court1) -and -not (Has '/courts?courtType=7' $court2)) ""
+Check "filtro courtType=5: aparecen las dos" ((Has '/courts?courtType=5' $court1) -and (Has '/courts?courtType=5' $court2)) ""
+Check "filtro courtType=8: no aparece ninguna" (-not (Has '/courts?courtType=8' $court1) -and -not (Has '/courts?courtType=8' $court2)) ""
 Check "courtType inválido en el filtro -> 400" ((Call Get '/courts?courtType=9' $null $null).code -eq 400) ""
-Check "crear con courtType=9 -> 400" ((Call Post /owner/courts @{name='Mala Tipo';city='Bogotá';address='Cra 1 # 1-1';lat=4;lng=-74;covered=$true;courtType=9;pricePerHour=5000;openHour=1;closeHour=2;requiresDeposit=$false} $ot).code -eq 400) ""
-$upd = Call Patch "/owner/courts/$court2" @{courtType=8} $ot
-Check "el dueño cambia el tipo (PATCH)" ($upd.body.courtType -eq 8) "$($upd.code) $($upd.raw)"
-$null = Call Patch "/owner/courts/$court2" @{courtType=5} $ot
+$bad = @{name='Mala Tipo';city='Bogotá';address='Cra 1 # 1-1';lat=4;lng=-74;covered=$true;pricePerHour=5000;openHour=1;closeHour=2;requiresDeposit=$false}
+Check "crear con courtTypes=[9] -> 400" ((Call Post /owner/courts ($bad + @{courtTypes=@(9)}) $ot).code -eq 400) ""
+Check "crear con courtTypes=[] -> 400" ((Call Post /owner/courts ($bad + @{courtTypes=@()}) $ot).code -eq 400) ""
+Check "crear con courtTypes repetidos -> 400" ((Call Post /owner/courts ($bad + @{courtTypes=@(5,5)}) $ot).code -eq 400) ""
+Check "crear con courtType=9 (forma antigua) -> 400" ((Call Post /owner/courts ($bad + @{courtType=9}) $ot).code -eq 400) ""
+$upd = Call Patch "/owner/courts/$court2" @{courtTypes=@(8,6)} $ot
+Check "el dueño cambia los tipos (PATCH)" (($upd.body.courtTypes -join ',') -eq '6,8') "$($upd.code) $($upd.raw)"
+$upd2 = Call Patch "/owner/courts/$court2" @{courtType=11} $ot
+Check "PATCH con la forma antigua (courtType) también funciona" (($upd2.body.courtTypes -join ',') -eq '11') "$($upd2.code) $($upd2.raw)"
+$null = Call Patch "/owner/courts/$court2" @{courtTypes=@(5)} $ot
 
 Write-Host "== Reservas: anticipo y doble reserva"
 $day = (Get-Date).ToUniversalTime().Date.AddDays(2).AddHours(15)   # 10:00 a. m. Colombia

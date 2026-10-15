@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -13,19 +14,29 @@ extension NavInset on EdgeInsets {
   EdgeInsets withNav(BuildContext context) => copyWith(bottom: bottom + MediaQuery.paddingOf(context).bottom);
 }
 
-/// Elegir el tipo de cancha (Fútbol 5, 6, 7, 8 u 11).
+/// Elegir los tipos de cancha (Fútbol 5, 6, 7, 8 u 11): se puede marcar más de uno,
+/// pero siempre debe quedar al menos uno.
 class CourtTypePicker extends StatelessWidget {
   const CourtTypePicker({super.key, required this.value, required this.onChanged});
-  final int value;
-  final ValueChanged<int> onChanged;
+  final List<int> value;
+  final ValueChanged<List<int>> onChanged;
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Tipo de cancha', style: Theme.of(context).textTheme.bodyMedium),
+        Text('Tipos de cancha', style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 4),
+        Text('Marca todos los que ofrece (puedes elegir varios).', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final t in courtTypes)
-            ChoiceChip(label: Text(courtTypeLabel(t)), selected: value == t, onSelected: (_) => onChanged(t)),
+            FilterChip(
+              label: Text(courtTypeLabel(t)),
+              selected: value.contains(t),
+              onSelected: (on) {
+                final next = on ? ([...value, t]..sort()) : value.where((x) => x != t).toList();
+                if (next.isNotEmpty) onChanged(next);
+              },
+            ),
         ]),
       ]);
 }
@@ -80,11 +91,28 @@ Future<PickedImage?> pickImage(BuildContext context) async {
     ),
   );
   if (source == null) return null;
+  final picker = ImagePicker();
   try {
-    final f = await ImagePicker().pickImage(source: source, maxWidth: 1600, imageQuality: 85);
+    var f = await picker.pickImage(source: source, maxWidth: 1600, imageQuality: 85);
+    // Android puede reciclar la app mientras la cámara está abierta: la foto tomada se recupera aquí.
+    if (f == null) {
+      final lost = await picker.retrieveLostData();
+      if (!lost.isEmpty && lost.file != null) f = lost.file;
+    }
     if (f == null) return null;
     final name = f.name.isEmpty ? 'foto.jpg' : f.name;
     return PickedImage(await f.readAsBytes(), name);
+  } on PlatformException catch (e) {
+    if (context.mounted) {
+      final denied = e.code.contains('access_denied') || e.code.contains('permission');
+      showSnack(
+        context,
+        denied
+            ? 'Activa el permiso de ${source == ImageSource.camera ? 'cámara' : 'fotos'} en los Ajustes del teléfono.'
+            : 'No se pudo abrir la cámara o la galería',
+      );
+    }
+    return null;
   } catch (_) {
     if (context.mounted) showSnack(context, 'No se pudo abrir la cámara o la galería');
     return null;

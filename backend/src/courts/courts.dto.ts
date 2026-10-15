@@ -1,6 +1,8 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
@@ -17,6 +19,7 @@ import {
 
 /** Jugadores por equipo: Fútbol 5, 6, 7, 8 u 11. */
 export const COURT_TYPES = [5, 6, 7, 8, 11];
+
 
 const toBool = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 
@@ -46,6 +49,9 @@ export class CreateCourtDto {
   @IsNumber() @Min(-90) @Max(90) lat!: number;
   @IsNumber() @Min(-180) @Max(180) lng!: number;
   @IsBoolean() covered!: boolean;
+  /** Tipos de juego (uno o varios). */
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @ArrayUnique() @IsIn(COURT_TYPES, { each: true }) courtTypes?: number[];
+  /** Forma antigua (un solo tipo): se sigue aceptando. */
   @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
   @IsInt() @Min(1000) @Max(1_000_000) pricePerHour!: number;
   @IsInt() @Min(0) @Max(23) openHour!: number;
@@ -62,6 +68,7 @@ export class UpdateCourtDto {
   @IsOptional() @IsNumber() @Min(-90) @Max(90) lat?: number;
   @IsOptional() @IsNumber() @Min(-180) @Max(180) lng?: number;
   @IsOptional() @IsBoolean() covered?: boolean;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @ArrayUnique() @IsIn(COURT_TYPES, { each: true }) courtTypes?: number[];
   @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
   @IsOptional() @IsInt() @Min(1000) @Max(1_000_000) pricePerHour?: number;
   @IsOptional() @IsInt() @Min(0) @Max(23) openHour?: number;

@@ -2,17 +2,18 @@
 # Sideloadly (que lo firma con tu Apple ID). Con Apple ID gratis NO hay push en iOS ni
 # capability aps-environment; la app caduca a los 7 días y hay que reinstalarla.
 #
-# Variables en Codemagic (Environment variables, grupo "golazo"):
-#   API_URL                 -> https://api.tudominio.com/v1  (la app lo lee con --dart-define)
-#   GOOGLE_SERVICE_INFO_PLIST (opcional, base64 del GoogleService-Info.plist, solo si habrá push)
+# La URL de la API va aquí abajo en `vars` (no es un secreto; la app la lleva dentro de todos modos).
+# Cuando cambie el túnel o el dominio, se edita esta línea y se vuelve a compilar.
+# Opcional: variable GOOGLE_SERVICE_INFO_PLIST en Codemagic (base64 del GoogleService-Info.plist),
+# solo si algún día hay push en iOS.
 workflows:
   ios-sideload:
     name: iOS sin firmar (Sideloadly)
     instance_type: mac_mini_m2
     max_build_duration: 40
     environment:
-      groups:
-        - golazo
+      vars:
+        API_URL: https://kenyatta-unpreened-madden.ngrok-free.dev/v1
       flutter: stable
       xcode: latest
       cocoapods: default

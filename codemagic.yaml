@@ -26,10 +26,7 @@ workflows:
             echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
             echo "PUSH_DEFINE=--dart-define=GOLAZO_PUSH_IOS=true" >> $CM_ENV
           fi
-      - name: Pods
-        script: |
-          cd ios
-          pod install
+      # `flutter build ios` genera el Podfile e instala los pods por sí solo.
       - name: Compilar sin firmar
         script: |
           flutter build ios --release --no-codesign \

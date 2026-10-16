@@ -13,7 +13,7 @@ workflows:
     max_build_duration: 40
     environment:
       vars:
-        API_URL: https://kenyatta-unpreened-madden.ngrok-free.dev/v1
+        API_URL: https://golazo-app.duckdns.org/v1
       flutter: stable
       xcode: latest
       cocoapods: default

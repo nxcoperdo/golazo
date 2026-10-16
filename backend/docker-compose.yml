@@ -47,6 +47,24 @@ services:
       # Solo local: el acceso público pasa por Nginx.
       - "127.0.0.1:3000:3000"
 
+  # HTTPS público (solo en el servidor): docker compose --profile prod up -d
+  # Necesita DOMAIN en .env apuntando a la IP del servidor y los puertos 80 y 443 abiertos.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["prod"]
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
   # Aplica las migraciones pendientes: docker compose run --rm migrate
   migrate:
     build: .
@@ -61,3 +79,5 @@ services:
 volumes:
   pgdata:
   uploads:
+  caddy_data:
+  caddy_config:

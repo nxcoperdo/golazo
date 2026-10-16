@@ -1,0 +1,9 @@
+# Proxy inverso con HTTPS automático (Let's Encrypt). DOMAIN viene del .env (p. ej. golazo.duckdns.org).
+{$DOMAIN} {
+	encode gzip
+	# Comprobantes y fotos: el API acepta hasta 5 MB; margen para el multipart.
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy api:3000
+}

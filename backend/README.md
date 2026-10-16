@@ -48,13 +48,18 @@ docker compose run --rm migrate node dist/scripts/create-admin.js correo@dominio
 
 Esperan ~1 minuto entre corridas por el límite de intentos de `/auth`. Borran sus propios datos (`@itest.co`).
 
-## Despliegue en el VPS
+## Despliegue en el VPS (Docker + Caddy con HTTPS automático)
 
-1. `cp .env.example .env` y cambia **todos** los secretos (distintos a los de desarrollo).
-2. `docker compose up -d db && docker compose run --rm migrate && docker compose up -d --build api`.
-3. Nginx termina TLS y reenvía a `127.0.0.1:3000` con `X-Forwarded-For`.
-4. **Respaldos:** `pg_dump` diario **y** el volumen `uploads` (fotos y comprobantes), copiados fuera del VPS.
-5. Opcionales en `.env`: `SMTP_URL`/`MAIL_FROM` (correos), `FCM_SERVICE_ACCOUNT_FILE` (push: JSON de la cuenta de servicio de Firebase guardado en `backend/secrets/fcm.json`, montado como volumen en `docker-compose.yml`, y `FCM_SERVICE_ACCOUNT_FILE=/run/secrets/fcm.json`), `GOOGLE_CLIENT_ID`.
+1. Un dominio apuntando a la IP del VPS (puede ser gratis en DuckDNS: `algo.duckdns.org`). Puertos 22, 80 y 443 abiertos.
+2. En el servidor: `cp .env.example .env` y cambia **todos** los secretos (distintos a los de desarrollo) y pon `DOMAIN=algo.duckdns.org`.
+3. Primera vez: `docker compose up -d db && docker compose run --rm migrate && docker compose --profile prod up -d --build`.
+   Caddy pide solo el certificado de Let's Encrypt la primera vez (tarda unos segundos).
+4. Actualizar: `git pull` (o copiar los archivos) y `docker compose build && docker compose run --rm migrate && docker compose --profile prod up -d`.
+5. Crear el administrador: `docker compose run --rm migrate node dist/scripts/create-admin.js correo "Nombre" "clave-larga"`.
+6. **Respaldos:** `pg_dump` diario **y** el volumen `uploads` (fotos y comprobantes), copiados fuera del VPS.
+7. Opcionales en `.env`: `SMTP_URL`/`MAIL_FROM` (correos), `FCM_SERVICE_ACCOUNT_FILE` (push: JSON de la cuenta de servicio de Firebase guardado en `backend/secrets/fcm.json`, montado como volumen en `docker-compose.yml`, y `FCM_SERVICE_ACCOUNT_FILE=/run/secrets/fcm.json`), `GOOGLE_CLIENT_ID`, `PLATFORM_PAYMENT_ACCOUNTS`.
+
+La app apunta a `https://TU_DOMINIO/v1` (variable `API_URL` al compilar).
 
 ## Tareas programadas (cada minuto, con candado en la base)
 

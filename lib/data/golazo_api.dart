@@ -219,6 +219,13 @@ class GolazoApi {
           .map(Payment.fromJson)
           .toList();
 
+  /// Devoluciones de anticipos de las canchas del dueño (pendientes primero).
+  Future<List<Refund>> ownerRefunds() async =>
+      _rows(await _c.get('/owner/refunds')).map(Refund.fromJson).toList();
+
+  Future<void> markRefundDone(String id, {String? note}) =>
+      _c.post('/owner/refunds/$id/done', body: {if (note != null && note.trim().isNotEmpty) 'note': note.trim()});
+
   Future<void> approvePayment(String id) => _c.post('/owner/payments/$id/approve');
   Future<void> rejectPayment(String id, {String? reason}) =>
       _c.post('/owner/payments/$id/reject', body: {if (reason != null && reason.isNotEmpty) 'reason': reason});

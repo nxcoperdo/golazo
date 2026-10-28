@@ -113,9 +113,9 @@ class NotificationsScreen extends ConsumerWidget {
   String? _routeFor(AppNotification n, Role? role) {
     final type = n.data['type'] as String?;
     return switch ((role, type)) {
-      (Role.player, 'payment_rejected' || 'booking_confirmed' || 'booking_expired' || 'booking_reminder') =>
+      (Role.player, 'payment_rejected' || 'booking_confirmed' || 'booking_expired' || 'booking_reminder' || 'refund_done') =>
         '/home?tab=1',
-      (Role.owner, 'payment_pending') => '/owner?tab=1',
+      (Role.owner, 'payment_pending' || 'refund_pending') => '/owner?tab=1',
       (Role.owner, 'booking_new' || 'booking_cancelled') => '/owner?tab=0',
       (Role.owner, 'subscription_approved' || 'subscription_rejected' || 'subscription_expired' || 'subscription_expiring') =>
         '/owner?tab=2',

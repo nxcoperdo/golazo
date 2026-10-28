@@ -200,6 +200,11 @@ final ownerPaymentsProvider =
   return ref.watch(apiProvider).ownerPayments(status: status);
 });
 
+final ownerRefundsProvider = FutureProvider.autoDispose<List<Refund>>((ref) {
+  ref.watch(userIdProvider);
+  return ref.watch(apiProvider).ownerRefunds();
+});
+
 typedef DateRange = ({DateTime from, DateTime to});
 
 /// Reservas de las canchas del dueño en los próximos [days] días (desde hoy).

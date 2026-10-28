@@ -17,3 +17,6 @@ export function dateLabelCo(d: Date): string {
   const iso = new Date(d.getTime() - 5 * 3600_000).toISOString();
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 }
+
+/** Pesos colombianos para textos de avisos: $ 50.000. */
+export const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });

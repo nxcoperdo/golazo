@@ -38,6 +38,7 @@ services:
       APP_VERIFY_URL: ${APP_VERIFY_URL:-golazo://verify-email}
       # Push FCM (opcional): monta la cuenta de servicio y apunta a ella.
       FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      ENABLE_DOCS: ${ENABLE_DOCS:-0}
       # Datos del responsable que salen en /legal/* (términos, privacidad, soporte).
       LEGAL_RESPONSIBLE_NAME: ${LEGAL_RESPONSIBLE_NAME:-}
       LEGAL_RESPONSIBLE_ID: ${LEGAL_RESPONSIBLE_ID:-}

@@ -62,6 +62,20 @@ Esperan ~1 minuto entre corridas por el límite de intentos de `/auth`. Borran s
 
 La app apunta a `https://TU_DOMINIO/v1` (variable `API_URL` al compilar).
 
+## Documentación OpenAPI
+
+`docs/openapi.json` es la especificación completa (66 rutas). Para verla en Swagger UI: `ENABLE_DOCS=1 docker compose up -d --build api` y abrir `http://127.0.0.1:3000/docs` (JSON en `/docs-json`). En producción déjala apagada. Para regenerar el archivo: con `ENABLE_DOCS=1` activo, `curl -s http://127.0.0.1:3000/docs-json -o ../docs/openapi.json`.
+
+## Respaldos (VPS)
+
+`scripts/backup.sh` guarda la base (`pg_dump` comprimido) y el volumen `uploads` (fotos y comprobantes) en `/opt/golazo-backups/AAAA-MM-DD_HHMM` y borra los de más de 7 días. Si algo falla no deja un respaldo a medias.
+
+- Probar a mano: `bash /opt/golazo/backend/scripts/backup.sh`
+- Diario con cron (`crontab -e`): `15 3 * * * bash /opt/golazo/backend/scripts/backup.sh >> /var/log/golazo-backup.log 2>&1`
+- Copia FUERA del servidor (recomendado; solo en el VPS no protege si se pierde): `BACKUP_REMOTE=usuario@otro-servidor:/respaldos/golazo` en el cron (usa `rsync` por SSH). Variables: `BACKUP_DIR`, `KEEP_DAYS`.
+- Restaurar la base (en una base nueva para probar, o sobre la real con la API detenida): `zcat db.sql.gz | docker compose exec -T db psql -U golazo -d golazo_prueba -v ON_ERROR_STOP=1`.
+- Restaurar archivos: `docker compose exec -T api tar -C /app/storage -xz < uploads.tgz` (el contenedor `api` debe estar corriendo).
+
 ## Tareas programadas (cada minuto, con candado en la base)
 
 - Cancela reservas sin comprobante tras `UNPAID_MINUTES` (30) y libera la hora.
@@ -91,7 +105,7 @@ Errores: `{ "code": "...", "message": "..." }` (validación: `{ message: [...] }
 **Dueño** (`role=owner`) — `GET|POST /owner/courts` · `GET|PATCH /owner/courts/:id` · `PUT /owner/courts/:id/payment-methods` ·
 `POST /owner/courts/:id/photos` (multipart `photo`) · `DELETE /owner/courts/:id/photos/:photoId` ·
 `POST /owner/courts/:id/subscription-payment` (multipart `proof`) · `GET /owner/payments?status` ·
-`POST /owner/payments/:id/approve|reject` · `GET /owner/stats?from&to&courtId`
+`POST /owner/payments/:id/approve|reject` · `GET /owner/refunds?status=pending|done` · `POST /owner/refunds/:id/done` (`{note?}`: anticipo devuelto por fuera de la app tras una cancelación) · `GET /owner/stats?from&to&courtId`
 
 **Admin** (`role=admin`) — `GET /admin/users` · `POST /admin/users/:id/suspend|restore` · `DELETE /admin/users/:id` ·
 `GET /admin/courts` · `POST /admin/courts/:id/suspend|reactivate` · `POST /admin/courts/:id/subscription-payment` (`{amount?, note?}`: mensualidad cobrada fuera de la app, abre 30 días y activa) · `GET /admin/payments?kind&status` ·

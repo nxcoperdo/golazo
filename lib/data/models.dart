@@ -386,6 +386,49 @@ class Payment {
       );
 }
 
+/// Devolución de un anticipo por una cancelación: el dueño la hace fuera de la app y aquí la marca como hecha.
+class Refund {
+  const Refund({
+    required this.id,
+    required this.done,
+    required this.amount,
+    required this.createdAt,
+    required this.courtName,
+    required this.playerName,
+    this.playerPhone,
+    this.note,
+    this.doneAt,
+    this.startAt,
+    this.hours,
+  });
+
+  final String id;
+  final bool done;
+  final int amount;
+  final DateTime createdAt;
+  final DateTime? doneAt;
+  final String courtName;
+  final String playerName;
+  final String? playerPhone;
+  final String? note;
+  final DateTime? startAt;
+  final int? hours;
+
+  factory Refund.fromJson(Map<String, dynamic> j) => Refund(
+        id: j['id'] as String,
+        done: j['status'] == 'done',
+        amount: _int(j['amount']),
+        createdAt: _dt(j['createdAt']),
+        doneAt: _dtOrNull(j['doneAt']),
+        courtName: j['courtName'] as String,
+        playerName: j['playerName'] as String,
+        playerPhone: j['playerPhone'] as String?,
+        note: j['note'] as String?,
+        startAt: _dtOrNull(j['startAt']),
+        hours: j['hours'] == null ? null : _int(j['hours']),
+      );
+}
+
 class OwnerBooking {
   const OwnerBooking({
     required this.id,

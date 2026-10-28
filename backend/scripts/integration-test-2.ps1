@@ -62,6 +62,7 @@ DELETE FROM review_reports WHERE reporter_id IN (SELECT id FROM tu) OR review_id
 DELETE FROM reviews WHERE author_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM tc);
 DELETE FROM payments WHERE payer_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
+DELETE FROM refunds WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM bookings WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM courts WHERE id IN (SELECT id FROM tc);
 DELETE FROM users WHERE id IN (SELECT id FROM tu);
@@ -191,6 +192,28 @@ $bb = (Call Post /bookings @{ courtId = $court; startAt = (Iso $day2); hours = 1
 Upload "/bookings/$($bb.id)/payment" proof $png $p2t | Out-Null
 $cn = Call Post "/bookings/$($bb.id)/cancel" $null $p2t
 Check "cancela (faltan >24 h) y el pago deja de estar pendiente" ($cn.body.status -eq 'cancelled' -and @((Call Get '/owner/payments?status=pending' $null $ot).body).Count -eq 0) "$($cn.code) $($cn.raw)"
+
+Write-Host "== Devoluciones de anticipos (se devuelven fuera de la app)"
+Check "cancelar con el pago en revisión no genera devolución" (@((Call Get '/owner/refunds' $null $ot).body).Count -eq 0) ""
+$day3 = $day.AddDays(2)
+$rb = (Call Post /bookings @{ courtId = $court; startAt = (Iso $day3); hours = 1 } $p2t).body
+$rup = Upload "/bookings/$($rb.id)/payment" proof $png $p2t
+$rap = Call Post "/owner/payments/$($rup.body.paymentId)/approve" $null $ot
+Check "anticipo aprobado: reserva confirmada" ($rap.body.status -eq 'approved' -and (Call Get "/bookings/$($rb.id)" $null $p2t).body.status -eq 'confirmed') "$($rap.code) $($rap.raw)"
+Check "cancelación gratis con anticipo aprobado" ((Call Post "/bookings/$($rb.id)/cancel" $null $p2t).body.status -eq 'cancelled') ""
+$rf = @((Call Get '/owner/refunds?status=pending' $null $ot).body)
+Check "el dueño ve la devolución pendiente (40000, jugador, celular)" ($rf.Count -eq 1 -and $rf[0].amount -eq 40000 -and $rf[0].playerName -eq 'Maria Gomez' -and $rf[0].playerPhone -eq '3001112233' -and $rf[0].status -eq 'pending') "$($rf | ConvertTo-Json -Compress)"
+Check "el dueño recibió el aviso de devolución" (@((Call Get /notifications $null $ot).body.items | Where-Object { $_.body -like '*Debes devolverle*' }).Count -eq 1) ""
+Check "jugador no entra a /owner/refunds (403)" ((Call Get '/owner/refunds' $null $p2t).code -eq 403) ""
+Check "filtro de estado inválido -> 400" ((Call Get '/owner/refunds?status=otra' $null $ot).code -eq 400) ""
+$other = Register 'Dueno Cinco' 'dueno5@itest.co' $true
+Check "otro dueño no ve la devolución" (@((Call Get '/owner/refunds' $null $other.accessToken).body).Count -eq 0) ""
+Check "otro dueño no puede marcarla (404)" ((Call Post "/owner/refunds/$($rf[0].id)/done" @{} $other.accessToken).code -eq 404) ""
+$dn = Call Post "/owner/refunds/$($rf[0].id)/done" @{ note = 'Nequi 25 oct' } $ot
+Check "el dueño marca la devolución como hecha" ($dn.code -eq 200 -and $dn.body.status -eq 'done') "$($dn.code) $($dn.raw)"
+Check "marcarla otra vez -> 409" ((Call Post "/owner/refunds/$($rf[0].id)/done" @{} $ot).code -eq 409) ""
+Check "ya no está pendiente y queda en el historial con su nota" (@((Call Get '/owner/refunds?status=pending' $null $ot).body).Count -eq 0 -and (Call Get '/owner/refunds?status=done' $null $ot).body[0].note -eq 'Nequi 25 oct') ""
+Check "el jugador recibió el aviso de devolución" (@((Call Get /notifications $null $p2t).body.items | Where-Object { $_.title -eq 'Devolución enviada' }).Count -eq 1) ""
 
 Write-Host "== Reseñas"
 $past = Sql "INSERT INTO bookings (court_id, player_id, start_at, hours, end_at, total, deposit, last_minute, status) VALUES ('$court','$($p1.user.id)', now() - interval '3 days', 1, now() - interval '3 days' + interval '1 hour', 100000, 0, false, 'confirmed') RETURNING id;" | Select-Object -First 1

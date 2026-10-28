@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AccountService } from '../auth/account.service.js';
-import { dateLabelCo, hourLabelCo } from '../common/time.js';
+import { COP, dateLabelCo, hourLabelCo } from '../common/time.js';
 import { Db, EXCLUSION_VIOLATION, pgCode } from '../db/db.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { canCancelFree, colombiaHour, depositFor, isLastMinute, validateSlot } from './booking-policy.js';
@@ -194,7 +194,7 @@ export class BookingsService {
       });
     }
     // El estado va en el WHERE: si cambió entre la lectura y ahora, no se pisa.
-    await this.db.tx(async (c) => {
+    const refundAmount = await this.db.tx(async (c) => {
       const upd = await c.query(
         `UPDATE bookings SET status = 'cancelled', cancelled_at = now()
          WHERE id = $1 AND player_id = $2 AND status = $3`,
@@ -209,14 +209,26 @@ export class BookingsService {
          WHERE booking_id = $1 AND status = 'pending'`,
         [id],
       );
+      // Si el anticipo ya estaba aprobado, el dueño debe devolverlo (fuera de la app): queda el registro.
+      const refund = await c.query<{ amount: number }>(
+        `INSERT INTO refunds (booking_id, court_id, player_id, amount)
+         SELECT b.id, b.court_id, b.player_id, SUM(p.amount)::int
+         FROM bookings b JOIN payments p ON p.booking_id = b.id AND p.kind = 'booking' AND p.status = 'approved'
+         WHERE b.id = $1 GROUP BY b.id HAVING SUM(p.amount) > 0
+         ON CONFLICT (booking_id) DO NOTHING RETURNING amount`,
+        [id],
+      );
+      return refund.rows[0]?.amount ?? 0;
     });
     if (b.status === 'pending_review' || b.status === 'confirmed') {
       void this.notifications
         .create({
           userId: b.owner_id,
           title: 'Reserva cancelada',
-          body: `Un jugador canceló su reserva en ${b.court_name} del ${dateLabelCo(b.start_at)} a las ${hourLabelCo(b.start_at)}.`,
-          data: { type: 'booking_cancelled', bookingId: id },
+          body:
+            `Un jugador canceló su reserva en ${b.court_name} del ${dateLabelCo(b.start_at)} a las ${hourLabelCo(b.start_at)}.` +
+            (refundAmount > 0 ? ` Debes devolverle ${COP.format(refundAmount)} (queda en Pagos → Devoluciones).` : ''),
+          data: refundAmount > 0 ? { type: 'refund_pending', bookingId: id } : { type: 'booking_cancelled', bookingId: id },
         })
         .catch(() => undefined);
     }

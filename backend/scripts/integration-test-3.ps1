@@ -62,6 +62,7 @@ DELETE FROM review_reports WHERE reporter_id IN (SELECT id FROM tu) OR review_id
 DELETE FROM reviews WHERE author_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM tc);
 DELETE FROM payments WHERE payer_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
+DELETE FROM refunds WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM bookings WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM courts WHERE id IN (SELECT id FROM tc);
 DELETE FROM users WHERE id IN (SELECT id FROM tu);

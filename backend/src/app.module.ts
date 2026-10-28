@@ -14,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { OwnerModule } from './owner/owner.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PlatformModule } from './platform/platform.module.js';
+import { RefundsModule } from './refunds/refunds.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { StorageModule } from './storage/storage.module.js';
 
@@ -30,6 +31,7 @@ import { StorageModule } from './storage/storage.module.js';
     CourtsModule,
     BookingsModule,
     PaymentsModule,
+    RefundsModule,
     ReviewsModule,
     OwnerModule,
     PlatformModule,

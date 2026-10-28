@@ -59,14 +59,16 @@ OwnerBooking mkOwnerBooking(String id, DateTime start, {String court = 'La Bombo
     );
 
 class OwnerApi extends FakeApi {
-  OwnerApi({super.user = owner, List<Court>? courts, List<OwnerBooking>? bookings, List<Payment>? payments})
+  OwnerApi({super.user = owner, List<Court>? courts, List<OwnerBooking>? bookings, List<Payment>? payments, List<Refund>? refunds})
       : ownerCourtList = courts ?? [],
         bookingList = bookings ?? [],
-        paymentList = payments ?? [];
+        paymentList = payments ?? [],
+        refundList = refunds ?? [];
 
   List<Court> ownerCourtList;
   List<OwnerBooking> bookingList;
   List<Payment> paymentList;
+  List<Refund> refundList;
   final calls = <String>[];
   Map<String, dynamic>? createdCourt;
   Map<String, dynamic>? updated;
@@ -80,6 +82,15 @@ class OwnerApi extends FakeApi {
 
   @override
   Future<List<OwnerBooking>> ownerBookings({DateTime? from, DateTime? to, String? courtId}) async => bookingList;
+
+  @override
+  Future<List<Refund>> ownerRefunds() async => refundList;
+
+  @override
+  Future<void> markRefundDone(String id, {String? note}) async {
+    calls.add('refund:$id:${note ?? ''}');
+    refundList = [for (final r in refundList) r.id == id ? mkRefund(id, done: true, note: note) : r];
+  }
 
   @override
   Future<List<Payment>> ownerPayments({PaymentStatus? status}) async =>
@@ -148,6 +159,19 @@ class OwnerApi extends FakeApi {
   }
 
 }
+
+Refund mkRefund(String id, {bool done = false, String player = 'Maria Gomez', int amount = 40000, String? note}) => Refund(
+      id: id,
+      done: done,
+      amount: amount,
+      createdAt: DateTime.utc(2026, 10, 25, 15),
+      courtName: 'La Bombonera 5',
+      playerName: player,
+      playerPhone: '3001112233',
+      note: note,
+      startAt: DateTime.utc(2026, 10, 30, 20),
+      hours: 1,
+    );
 
 Court mkOwnerCourt(String id, String name, {CourtStatus status = CourtStatus.active, CourtSubscription? sub, List<PaymentMethod> methods = const [], List<int> types = const [7]}) => Court(
       id: id,
@@ -321,6 +345,37 @@ void main() {
       expect(find.textContaining('Motivo del rechazo: Borroso'), findsOneWidget);
       expect(find.text('Laura Méndez'), findsNothing);
       expect(find.text('Aprobar'), findsNothing);
+    });
+
+    testWidgets('devoluciones: lista las pendientes y se marcan como devueltas con una nota', (t) async {
+      final api = OwnerApi(refunds: [mkRefund('r1'), mkRefund('r2', done: true, player: 'Andrés Pérez', note: 'Nequi')]);
+      await pumpScreen(t, const OwnerPaymentsTab(), api);
+      await t.tap(find.text('Devoluciones'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('debes devolvérselo por fuera de la app'), findsOneWidget);
+      expect(find.text('Por devolver'), findsOneWidget);
+      expect(find.text('Devuelto'), findsOneWidget);
+      expect(find.text(r'$40.000'), findsNWidgets(2));
+      expect(find.text('Nota: Nequi'), findsOneWidget);
+      // solo la pendiente tiene botón
+      expect(find.text('Marcar como devuelto'), findsOneWidget);
+      await t.tap(find.text('Marcar como devuelto'));
+      await t.pumpAndSettle();
+      expect(find.text('¿Ya devolviste el dinero?'), findsOneWidget);
+      await t.enterText(find.byType(TextFormField), 'Daviplata');
+      await t.tap(find.widgetWithText(FilledButton, 'Marcar como devuelto').last);
+      await t.pumpAndSettle();
+      expect(api.calls, ['refund:r1:Daviplata']);
+      expect(find.text('Devolución registrada'), findsOneWidget);
+      expect(find.text('Por devolver'), findsNothing);
+      expect(find.text('Devuelto'), findsNWidgets(2));
+    });
+
+    testWidgets('devoluciones: sin registros', (t) async {
+      await pumpScreen(t, const OwnerPaymentsTab(), OwnerApi());
+      await t.tap(find.text('Devoluciones'));
+      await t.pumpAndSettle();
+      expect(find.text('No hay devoluciones.'), findsOneWidget);
     });
 
     testWidgets('sin comprobantes por revisar', (t) async {

@@ -10,5 +10,6 @@ import { PaymentsService } from './payments.service.js';
 @Module({
   controllers: [BookingPaymentController, OwnerPaymentsController, AdminPaymentsController, ProofController],
   providers: [PaymentsService],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

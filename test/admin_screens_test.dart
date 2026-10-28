@@ -72,6 +72,10 @@ class AdminApi extends FakeApi {
   Future<void> reactivateCourt(String id) async => calls.add('reactivateCourt:$id');
 
   @override
+  Future<void> registerSubscription(String courtId, {int? amount, String? note}) async =>
+      calls.add('registerSub:$courtId:${amount ?? '-'}:${note ?? ''}');
+
+  @override
   Future<List<AdminUser>> adminUsers({String? search, Role? role}) async {
     calls.add('users:${search ?? ''}');
     final q = (search ?? '').toLowerCase();
@@ -230,6 +234,26 @@ void main() {
       await t.tap(find.text('Reactivar'));
       await t.pumpAndSettle();
       expect(api.calls, ['suspendCourt:c1', 'reactivateCourt:c2']);
+    });
+
+    testWidgets('registrar mensualidad cobrada fuera de la app: monto y nota opcionales', (t) async {
+      final api = api0();
+      await pumpScreen(t, const AdminCourtsTab(), api);
+      expect(find.widgetWithText(TextButton, 'Registrar mensualidad'), findsNWidgets(3));
+      await t.tap(find.widgetWithText(TextButton, 'Registrar mensualidad').first);
+      await t.pumpAndSettle();
+      expect(find.textContaining('quedará activa por 30 días'), findsOneWidget);
+      await t.enterText(find.byType(TextFormField).at(0), 'abc');
+      await t.tap(find.widgetWithText(FilledButton, 'Registrar mensualidad'));
+      await t.pumpAndSettle();
+      expect(find.text('Solo números'), findsOneWidget);
+      expect(api.calls, isEmpty);
+      await t.enterText(find.byType(TextFormField).at(0), '100000');
+      await t.enterText(find.byType(TextFormField).at(1), 'Nequi 25 oct');
+      await t.tap(find.widgetWithText(FilledButton, 'Registrar mensualidad'));
+      await t.pumpAndSettle();
+      expect(api.calls, ['registerSub:c1:100000:Nequi 25 oct']);
+      expect(find.text('Mensualidad registrada'), findsOneWidget);
     });
   });
 

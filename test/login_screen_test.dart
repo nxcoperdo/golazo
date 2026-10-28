@@ -1,11 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:golazo/core/widgets/auth_ui.dart';
+import 'package:golazo/core/widgets/legal_consent.dart';
 import 'package:golazo/data/golazo_api.dart';
 import 'package:golazo/data/models.dart';
 import 'package:golazo/data/providers.dart';
+import 'package:golazo/features/auth/consent_screen.dart';
 import 'package:golazo/features/auth/login_screen.dart';
 import 'package:golazo/features/auth/password_reset_screens.dart';
 import 'package:golazo/features/auth/register_screen.dart';
@@ -19,6 +23,21 @@ class FakeApi extends Fake implements GolazoApi {
 
   @override
   Future<AppUser?> restore() async => null;
+
+  @override
+  Future<AppUser> register({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    bool asOwner = false,
+  }) async {
+    calls.add('register:$email:$phone:$asOwner');
+    return AppUser(id: 'u1', name: name, email: email, phone: phone, role: asOwner ? Role.owner : Role.player);
+  }
+
+  @override
+  Future<void> acceptTerms() async => calls.add('accept');
 
   @override
   Future<void> resetPassword(String token, String password) async => calls.add('reset:$token');
@@ -105,6 +124,84 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Celular de 10 dígitos que empiece por 3'), findsOneWidget);
     expect(find.text('Mínimo 8 caracteres'), findsWidgets);
+  });
+
+  testWidgets('registro: sin aceptar términos y privacidad no se crea la cuenta', (tester) async {
+    tallPhone(tester);
+    final api = FakeApi();
+    // Tras registrarse la pantalla consulta al router (context.canPop): hace falta uno.
+    await tester.pumpWidget(ProviderScope(
+      overrides: [apiProvider.overrideWithValue(api)],
+      child: MaterialApp.router(
+        routerConfig: GoRouter(routes: [GoRoute(path: '/', builder: (_, _) => const RegisterScreen())]),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.enterText(field(0), 'Ana Gómez');
+    await tester.enterText(field(1), 'ana@correo.co');
+    await tester.enterText(field(2), '3001234567');
+    await tester.enterText(field(3), 'clave-segura-1');
+    final button = find.text('Crear cuenta').last;
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Soy mayor de 18 años', findRichText: true), findsOneWidget);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Debes aceptar para crear tu cuenta'), findsOneWidget);
+    expect(api.calls, isEmpty);
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.pumpAndSettle();
+    expect(find.text('Debes aceptar para crear tu cuenta'), findsNothing);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(api.calls, ['register:ana@correo.co:3001234567:false']);
+  });
+
+  testWidgets('la casilla abre los Términos y la Política del servidor', (tester) async {
+    tallPhone(tester);
+    final opened = <Uri>[];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [openUrlProvider.overrideWithValue((u) async { opened.add(u); return true; })],
+      child: MaterialApp(home: Scaffold(body: LegalConsentCheck(value: false, onChanged: (_) {}))),
+    ));
+    await tester.tapOnText(find.textRange.ofSubstring('Términos y Condiciones'));
+    await tester.tapOnText(find.textRange.ofSubstring('Política de privacidad'));
+    expect(opened.map((u) => u.path), ['/legal/terminos', '/legal/privacidad']);
+  });
+
+  group('consentimiento', () {
+    testWidgets('el botón se habilita al marcar la casilla y guarda la aceptación', (tester) async {
+      tallPhone(tester);
+      final api = FakeApi();
+      await tester.pumpWidget(app(const ConsentScreen(), api: api));
+      FilledButton accept() => tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Aceptar y continuar'));
+      expect(accept().onPressed, isNull);
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      expect(accept().onPressed, isNotNull);
+      await tester.tap(find.widgetWithText(FilledButton, 'Aceptar y continuar'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['accept']);
+    });
+
+    testWidgets('quien no acepta puede cerrar sesión', (tester) async {
+      tallPhone(tester);
+      await tester.pumpWidget(app(const ConsentScreen(), api: FakeApi()));
+      expect(find.text('No acepto, cerrar sesión'), findsOneWidget);
+    });
+  });
+
+  testWidgets('login: en iOS no se ofrece Google (Apple exige Iniciar sesión con Apple)', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await tester.pumpWidget(app(const LoginScreen()));
+      expect(find.text('Continuar con Google'), findsNothing);
+      expect(find.text('o continúa con'), findsNothing);
+      expect(find.text('Crear cuenta nueva'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('registro: opción de dueño de cancha', (tester) async {

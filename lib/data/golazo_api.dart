@@ -35,7 +35,12 @@ class GolazoApi {
         'password': password,
         'phone': phone,
         if (asOwner) 'asOwner': true,
+        // La casilla de la pantalla es obligatoria: sin ella no se llama a esta función.
+        'acceptTerms': true,
       }));
+
+  /// Registra que el usuario aceptó los términos y la política de datos vigentes.
+  Future<void> acceptTerms() async => _c.post('/auth/consent', body: {'accept': true});
 
   Future<AppUser> login(String email, String password) async =>
       _session(await _c.post('/auth/login', body: {'email': email, 'password': password}));
@@ -285,6 +290,13 @@ class GolazoApi {
 
   Future<void> suspendCourt(String id) => _c.post('/admin/courts/$id/suspend');
   Future<void> reactivateCourt(String id) => _c.post('/admin/courts/$id/reactivate');
+
+  /// Mensualidad cobrada fuera de la app: abre 30 días y activa la cancha.
+  Future<void> registerSubscription(String courtId, {int? amount, String? note}) =>
+      _c.post('/admin/courts/$courtId/subscription-payment', body: {
+        'amount': ?amount,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      });
 
   Future<List<ReportedReview>> reportedReviews() async =>
       _rows(await _c.get('/admin/review-reports')).map(ReportedReview.fromJson).toList();

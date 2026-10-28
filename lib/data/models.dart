@@ -21,6 +21,7 @@ class AppUser {
     this.email,
     this.phone,
     this.emailVerified = false,
+    this.consentRequired = false,
   });
 
   final String id;
@@ -29,6 +30,9 @@ class AppUser {
   final String? phone;
   final Role role;
   final bool emailVerified;
+
+  /// true si aún no aceptó la versión vigente de los términos y la política de datos.
+  final bool consentRequired;
 
   /// Para reservar hace falta un celular de contacto.
   bool get hasPhone => phone != null && phone!.isNotEmpty;
@@ -40,6 +44,7 @@ class AppUser {
         phone: j['phone'] as String?,
         role: roleFrom(j['role'] as String),
         emailVerified: j['emailVerified'] as bool? ?? false,
+        consentRequired: j['consentRequired'] as bool? ?? false,
       );
 }
 

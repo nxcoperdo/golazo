@@ -9,6 +9,7 @@ import '../../core/validators.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/auth_ui.dart';
 import '../../core/widgets/design.dart';
+import '../../core/widgets/legal_consent.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
@@ -93,17 +94,6 @@ class _State extends ConsumerState<CourtManageScreen> {
     );
     if (v == null || !mounted) return;
     await _setMethods([...c.paymentMethods, PaymentMethod(label: v[0], account: v[1], holder: v[2])]);
-  }
-
-  Future<void> _paySubscription(Court c) async {
-    final sent = await showAppSheet<bool>(
-      context,
-      builder: (sheet) => _SubscriptionBody(courtId: c.id, onSent: () => Navigator.pop(sheet, true)),
-    );
-    if (sent == true && mounted) {
-      _refresh();
-      showSnack(context, 'Comprobante enviado. Te avisaremos cuando lo revisen.');
-    }
   }
 
   Future<void> _togglePause(Court c) async {
@@ -222,10 +212,8 @@ class _State extends ConsumerState<CourtManageScreen> {
     final sub = c.subscription;
     final canToggle = c.status == CourtStatus.active || (c.status == CourtStatus.suspended && sub?.activeUntil != null);
     final String detail;
-    if (sub?.pendingReview == true) {
-      detail = 'Tu comprobante de mensualidad está en revisión.';
-    } else if (c.status == CourtStatus.pending) {
-      detail = 'Oculta hasta que pagues la mensualidad.';
+    if (c.status == CourtStatus.pending) {
+      detail = 'Oculta hasta que Golazo la active.';
     } else if (c.status == CourtStatus.suspended) {
       detail = 'Oculta en el buscador';
     } else {
@@ -284,14 +272,11 @@ class _State extends ConsumerState<CourtManageScreen> {
         ]),
       );
 
+  /// Solo el estado de la mensualidad: el cobro se coordina con soporte, fuera de la app.
   Widget _subscriptionCard(Court c) {
     final sub = c.subscription;
-    final price = ref.watch(subscriptionConfigProvider).value?.price;
-    final (pill, tone) = sub?.pendingReview == true
-        ? ('En revisión', PillTone.blue)
-        : c.status == CourtStatus.pending
-            ? ('Pendiente', PillTone.amber)
-            : _until(sub?.activeUntil);
+    final pending = c.status == CourtStatus.pending;
+    final (pill, tone) = pending ? ('Pendiente de activación', PillTone.amber) : _until(sub?.activeUntil);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -302,14 +287,17 @@ class _State extends ConsumerState<CourtManageScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         StatusPill(pill, tone),
         const SizedBox(height: 12),
-        Text(price == null ? 'Mensualidad' : 'Mensualidad · ${cop(price)}', style: authText(16, weight: 800)),
+        Text('Mensualidad', style: authText(16, weight: 800)),
         const SizedBox(height: 4),
-        Text('Mantén tu cancha visible durante 30 días.',
+        Text(
+            pending
+                ? 'Tu cancha se hará visible cuando Golazo la active. Escribe a soporte para activarla.'
+                : 'Para renovar o resolver dudas de tu mensualidad escribe a soporte.',
             style: authText(12, weight: 500, color: const Color(0xFF76683C), height: 1.5)),
         const SizedBox(height: 16),
         SolidAction(
-          label: c.status == CourtStatus.active ? 'Renovar mensualidad' : 'Pagar mensualidad',
-          onPressed: _busy || sub?.pendingReview == true ? null : () => _paySubscription(c),
+          label: 'Contactar soporte',
+          onPressed: () => ref.read(openUrlProvider)(LegalPage.support.uri),
         ),
       ]),
     );
@@ -483,73 +471,4 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
           SheetActions(primaryLabel: 'Guardar cambios', onPrimary: _save),
         ]),
       );
-}
-
-/// Cuenta de la plataforma + subida del comprobante de la mensualidad.
-class _SubscriptionBody extends ConsumerStatefulWidget {
-  const _SubscriptionBody({required this.courtId, required this.onSent});
-  final String courtId;
-  final VoidCallback onSent;
-
-  @override
-  ConsumerState<_SubscriptionBody> createState() => _SubscriptionBodyState();
-}
-
-class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
-  PickedImage? _proof;
-  bool _busy = false;
-
-  Future<void> _pick() async {
-    final img = await ref.read(pickImageProvider)(context);
-    if (img != null && mounted) setState(() => _proof = img);
-  }
-
-  Future<void> _send() async {
-    final img = _proof;
-    if (img == null) return;
-    setState(() => _busy = true);
-    final ok = await guarded(
-      context,
-      () => ref.read(apiProvider).uploadSubscriptionProof(widget.courtId, img.bytes, img.filename),
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (ok) widget.onSent();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cfg = ref.watch(subscriptionConfigProvider);
-    return AsyncView<SubscriptionConfig>(
-      value: cfg,
-      onRetry: () => ref.invalidate(subscriptionConfigProvider),
-      builder: (c) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        SheetHeading('Pagar mensualidad', subtitle: '${cop(c.price)} por ${c.periodDays} días.'),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: const Color(0xFFF2F5EE), borderRadius: BorderRadius.circular(16)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Transfiere a la cuenta de la plataforma', style: authText(12, weight: 500, color: const Color(0xFF6C7B72))),
-            if (c.accounts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text('Aún no hay cuentas configuradas. Escríbenos para coordinar el pago.',
-                    style: authText(14, weight: 600, height: 1.4)),
-              )
-            else
-              for (final a in c.accounts) ...[
-                const SizedBox(height: 8),
-                Text('${a.label} · ${a.account}', style: authText(18, weight: 800)),
-                Text(a.holder, style: authText(12, weight: 500, color: const Color(0xFF6C7B72))),
-              ],
-            const SizedBox(height: 8),
-            Text(cop(c.price), style: authText(14, weight: 800)),
-          ]),
-        ),
-        const SizedBox(height: 16),
-        ProofDropZone(fileName: _proof?.filename, onTap: _busy ? null : _pick),
-        SheetActions(primaryLabel: 'Enviar comprobante', busy: _busy, onPrimary: _proof == null ? null : _send),
-      ]),
-    );
-  }
 }

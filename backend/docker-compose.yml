@@ -38,6 +38,13 @@ services:
       APP_VERIFY_URL: ${APP_VERIFY_URL:-golazo://verify-email}
       # Push FCM (opcional): monta la cuenta de servicio y apunta a ella.
       FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      # Datos del responsable que salen en /legal/* (términos, privacidad, soporte).
+      LEGAL_RESPONSIBLE_NAME: ${LEGAL_RESPONSIBLE_NAME:-}
+      LEGAL_RESPONSIBLE_ID: ${LEGAL_RESPONSIBLE_ID:-}
+      LEGAL_CONTACT_EMAIL: ${LEGAL_CONTACT_EMAIL:-}
+      LEGAL_PHONE: ${LEGAL_PHONE:-}
+      LEGAL_ADDRESS: ${LEGAL_ADDRESS:-}
+      LEGAL_CITY: ${LEGAL_CITY:-}
     volumes:
       # Fotos de canchas y comprobantes. Incluir en los respaldos del VPS.
       - uploads:/app/storage

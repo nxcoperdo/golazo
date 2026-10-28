@@ -192,6 +192,42 @@ class AdminCourtsTab extends ConsumerWidget {
                     const SizedBox(height: 12),
                     const NoticeBox('Suspendida por el administrador', bg: Color(0xFFFDECEA), fg: Color(0xFF8A2D26)),
                   ],
+                  TextButton(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 40), alignment: Alignment.centerLeft),
+                    onPressed: () async {
+                      final v = await showFormSheet(
+                        context,
+                        title: 'Registrar mensualidad',
+                        subtitle:
+                            '${c.name} quedará activa por 30 días (se suman al vencimiento si ya tiene mensualidad). Úsalo cuando el dueño ya pagó fuera de la app.',
+                        primaryLabel: 'Registrar mensualidad',
+                        initial: ['', ''],
+                        fields: [
+                          (x) => AuthField(
+                                label: 'Monto cobrado (opcional)',
+                                icon: Icons.payments_outlined,
+                                controller: x,
+                                hint: '100000',
+                                keyboardType: TextInputType.number,
+                                validator: (t) => (t == null || t.trim().isEmpty || RegExp(r'^\d{1,9}$').hasMatch(t.trim()))
+                                    ? null
+                                    : 'Solo números',
+                              ),
+                          (x) => AuthField(
+                                label: 'Nota (opcional)',
+                                icon: Icons.notes_outlined,
+                                controller: x,
+                                hint: 'Ej.: Nequi, 25 oct',
+                              ),
+                        ],
+                      );
+                      if (v == null || !context.mounted) return;
+                      final amount = int.tryParse(v[0].trim());
+                      await act(() => ref.read(apiProvider).registerSubscription(c.id, amount: amount, note: v[1]),
+                          'Mensualidad registrada');
+                    },
+                    child: const Text('Registrar mensualidad'),
+                  ),
                   if (c.status == CourtStatus.active)
                     TextButton(
                       style: TextButton.styleFrom(foregroundColor: const Color(0xFFB13C35), padding: EdgeInsets.zero, minimumSize: const Size(0, 40)),

@@ -26,6 +26,9 @@ class AppConfig {
         '529889456175-4ec4f0mrquppie69ta0oma3tjfk6spc4.apps.googleusercontent.com',
   );
 
+  /// Páginas públicas legales del servidor (sin /v1): terminos, privacidad, eliminar-cuenta, soporte.
+  static String legalUrl(String page) => '$origin/legal/$page';
+
   /// Convierte una ruta del servidor (`/v1/files/...`) en URL completa.
   static String fileUrl(String path) =>
       path.startsWith('http') ? path : '$origin$path';

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'api/api_client.dart';
@@ -11,6 +12,9 @@ import 'config.dart';
 class GoogleAuth {
   const GoogleAuth._();
   static bool _ready = false;
+
+  /// En iOS no se ofrece Google hasta tener también "Iniciar sesión con Apple" (guía 4.8 de Apple).
+  static bool get available => kIsWeb || defaultTargetPlatform != TargetPlatform.iOS;
 
   static Future<String?> idToken() async {
     final g = GoogleSignIn.instance;

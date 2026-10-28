@@ -1,8 +1,9 @@
-import { Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { AuthGuard, CurrentUser, Roles, type AuthUser } from '../auth/auth.guard.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
 import { AdminService } from './admin.service.js';
 
 class Page {
@@ -23,6 +24,11 @@ class TransactionsQuery extends Page {
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) to?: string;
 }
 
+class ManualSubscriptionDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100_000_000) amount?: number;
+  @IsOptional() @IsString() @MaxLength(200) note?: string;
+}
+
 @Controller('admin')
 @UseGuards(AuthGuard)
 @Roles('admin')
@@ -30,6 +36,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly jobs: JobsService,
+    private readonly payments: PaymentsService,
   ) {}
 
   @Get('users')
@@ -57,6 +64,17 @@ export class AdminController {
   @Get('courts')
   courts(@Query() q: CourtsQuery) {
     return this.admin.listCourts(q);
+  }
+
+  /** Mensualidad cobrada fuera de la app: abre el periodo de 30 días y activa la cancha. */
+  @HttpCode(200)
+  @Post('courts/:id/subscription-payment')
+  registerSubscription(
+    @CurrentUser() u: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ManualSubscriptionDto,
+  ) {
+    return this.payments.registerManualSubscription(u.id, id, dto.amount, dto.note);
   }
 
   @HttpCode(200)

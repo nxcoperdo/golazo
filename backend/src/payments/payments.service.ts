@@ -280,6 +280,30 @@ export class PaymentsService {
     return result;
   }
 
+  /**
+   * El admin registra una mensualidad cobrada fuera de la app (transferencia, efectivo...):
+   * crea el pago como aprobado y reutiliza reviewSubscription para abrir el periodo de 30 días.
+   */
+  async registerManualSubscription(adminId: string, courtId: string, amount?: number, note?: string) {
+    const court = (
+      await this.db.query<{ owner_id: string }>('SELECT owner_id FROM courts WHERE id = $1', [courtId])
+    ).rows[0];
+    if (!court) throw new NotFoundException({ code: 'COURT_NOT_FOUND', message: 'Cancha no encontrada' });
+    const proof = note?.trim() ? `manual:${note.trim().slice(0, 200)}` : 'manual';
+    const ins = await this.db.query<{ id: string }>(
+      `INSERT INTO payments (kind, court_id, payer_id, amount, proof_path)
+       VALUES ('subscription', $1, $2, $3, $4) RETURNING id`,
+      [courtId, court.owner_id, amount ?? this.subscriptionPrice, proof],
+    );
+    const paymentId = ins.rows[0]!.id;
+    try {
+      return await this.reviewSubscription(adminId, paymentId, true);
+    } catch (e) {
+      await this.db.query(`DELETE FROM payments WHERE id = $1 AND status = 'pending'`, [paymentId]);
+      throw e;
+    }
+  }
+
   // ---------- Comprobantes (descarga privada) ----------
 
   /** Ruta del comprobante si el usuario es quien lo subió, el dueño de la cancha o un administrador. */

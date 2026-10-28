@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/validators.dart';
 import '../../core/widgets/auth_ui.dart';
+import '../../core/widgets/legal_consent.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/providers.dart';
 
@@ -21,6 +22,8 @@ class _RegisterState extends ConsumerState<RegisterScreen> {
   final _phone = TextEditingController();
   final _password = TextEditingController();
   bool _owner = false;
+  bool _accepted = false;
+  bool _showConsentError = false;
   bool _busy = false;
 
   @override
@@ -33,7 +36,9 @@ class _RegisterState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_form.currentState!.validate()) return;
+    final valid = _form.currentState!.validate();
+    if (!_accepted) setState(() => _showConsentError = true);
+    if (!valid || !_accepted) return;
     setState(() => _busy = true);
     final ok = await guarded(
       context,
@@ -112,18 +117,21 @@ class _RegisterState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: 16),
             SwitchCard(
               title: 'Soy dueño de una cancha',
-              subtitle: 'Administra reservas y pagos. Tiene una mensualidad para aparecer en la app.',
+              subtitle: 'Publica tus canchas y administra reservas y pagos de tus jugadores.',
               value: _owner,
               onChanged: (v) => setState(() => _owner = v),
             ),
+            const SizedBox(height: 16),
+            LegalConsentCheck(
+              value: _accepted,
+              showError: _showConsentError && !_accepted,
+              onChanged: (v) => setState(() {
+                _accepted = v;
+                if (v) _showConsentError = false;
+              }),
+            ),
             const SizedBox(height: 20),
             PrimaryButton(label: 'Crear cuenta', busy: _busy, onPressed: _submit),
-            const SizedBox(height: 16),
-            Text(
-              'Al continuar aceptas los términos de uso y la política de privacidad.',
-              textAlign: TextAlign.center,
-              style: authText(11, weight: 500, color: const Color(0xFF7D8982), height: 1.5),
-            ),
           ]),
         ),
       ),

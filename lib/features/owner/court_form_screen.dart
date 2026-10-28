@@ -9,7 +9,7 @@ import '../../core/widgets/design.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/providers.dart';
 
-/// Alta de una cancha nueva. Nace "pendiente": se hace visible al pagar la mensualidad.
+/// Alta de una cancha nueva. Nace "pendiente": se hace visible cuando Golazo la activa.
 class CourtFormScreen extends ConsumerStatefulWidget {
   const CourtFormScreen({super.key});
 
@@ -98,7 +98,7 @@ class _State extends ConsumerState<CourtFormScreen> {
       });
       ref.invalidate(ownerCourtsProvider);
       if (!mounted) return;
-      showSnack(context, 'Cancha creada. Sube fotos y paga la mensualidad para publicarla.');
+      showSnack(context, 'Cancha creada. Sube fotos y escribe a soporte para que la activen.');
       context.pushReplacement('/owner/courts/${court.id}');
     } catch (e) {
       if (mounted) showError(context, e);
@@ -281,7 +281,7 @@ class _State extends ConsumerState<CourtFormScreen> {
           PrimaryButton(label: 'Crear cancha', busy: _busy, onPressed: _submit),
           const SizedBox(height: 12),
           Text(
-            'Quedará oculta hasta que pagues la mensualidad. Después podrás subir fotos y tus cuentas de cobro.',
+            'Quedará oculta hasta que Golazo la active. Mientras tanto puedes subir fotos y tus cuentas de cobro.',
             textAlign: TextAlign.center,
             style: authText(11, weight: 500, color: const Color(0xFF7D8982), height: 1.5),
           ),

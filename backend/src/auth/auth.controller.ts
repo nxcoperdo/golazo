@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Db } from '../db/db.service.js';
 import {
   ChangePasswordDto,
+  ConsentDto,
   DeleteAccountDto,
   ForgotPasswordDto,
   GoogleDto,
@@ -15,7 +16,7 @@ import {
 } from './auth.dto.js';
 import { AccountService } from './account.service.js';
 import { AuthGuard, CurrentUser, type AuthUser } from './auth.guard.js';
-import { AuthService } from './auth.service.js';
+import { AuthService, consentRequired } from './auth.service.js';
 
 // 10 intentos por minuto y por IP en las rutas de entrada (frena fuerza bruta).
 const AUTH_LIMIT = { default: { limit: 10, ttl: 60_000 } };
@@ -68,10 +69,22 @@ export class AuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthUser) {
     const { rows } = await this.db.query(
-      'SELECT id, name, email, phone, role, (email_verified_at IS NOT NULL) AS "emailVerified" FROM users WHERE id = $1',
+      `SELECT id, name, email, phone, role, (email_verified_at IS NOT NULL) AS "emailVerified",
+              terms_accepted_at, terms_version FROM users WHERE id = $1`,
       [user.id],
     );
-    return rows[0];
+    const { terms_accepted_at, terms_version, ...rest } = rows[0] as {
+      terms_accepted_at: Date | null;
+      terms_version: string | null;
+    } & Record<string, unknown>;
+    return { ...rest, consentRequired: consentRequired({ terms_accepted_at, terms_version }) };
+  }
+
+  @UseGuards(AuthGuard)
+  @HttpCode(200)
+  @Post('consent')
+  consent(@CurrentUser() user: AuthUser, @Body() _dto: ConsentDto) {
+    return this.auth.acceptTerms(user.id);
   }
 
   @UseGuards(AuthGuard)

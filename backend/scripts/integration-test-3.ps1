@@ -31,7 +31,7 @@ function Iso($d) { $d.ToUniversalTime().ToString("yyyy-MM-ddTHH:00:00Z") }
 function Has($list, $id) { @($list | Where-Object { $_.id -eq $id }).Count -ge 1 }
 function Titles($token) { @((Call Get /notifications $null $token).body.items | ForEach-Object { $_.title }) }
 function Register($name, $email, $owner) {
-  $r = (Call Post /auth/register @{ name = $name; email = $email; password = $pwd1; phone = '3001112233'; asOwner = $owner }).body
+  $r = (Call Post /auth/register @{acceptTerms=$true; name = $name; email = $email; password = $pwd1; phone = '3001112233'; asOwner = $owner }).body
   $script:ids += $r.user.id
   return $r
 }

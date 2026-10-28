@@ -90,17 +90,21 @@ class _LoginState extends ConsumerState<LoginScreen> {
             const SizedBox(height: 4),
             PrimaryButton(label: 'Ingresar', busy: _busy, onPressed: _login),
             const SizedBox(height: 24),
-            const OrDivider('o continúa con'),
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: _busy ? null : _google,
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('G', style: authText(18, weight: 800, color: const Color(0xFF4285F4))),
-                const SizedBox(width: 12),
-                const Text('Continuar con Google'),
-              ]),
-            ),
-            const SizedBox(height: 12),
+            // Apple (guía 4.8) exige ofrecer también "Iniciar sesión con Apple" si hay Google:
+            // en iOS se oculta hasta implementarlo.
+            if (GoogleAuth.available) ...[
+              const OrDivider('o continúa con'),
+              const SizedBox(height: 24),
+              OutlinedButton(
+                onPressed: _busy ? null : _google,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text('G', style: authText(18, weight: 800, color: const Color(0xFF4285F4))),
+                  const SizedBox(width: 12),
+                  const Text('Continuar con Google'),
+                ]),
+              ),
+              const SizedBox(height: 12),
+            ],
             TextButton(
               onPressed: _busy ? null : () => context.push('/register'),
               child: const Text('Crear cuenta nueva'),

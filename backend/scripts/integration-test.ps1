@@ -46,11 +46,29 @@ function Iso($d) { $d.ToUniversalTime().ToString("yyyy-MM-ddTHH:00:00Z") }
 Sql "DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM payments WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM bookings WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM users WHERE email LIKE '%@itest.co';" | Out-Null
 
 Write-Host "== Registro"
-$own = (Call Post /auth/register @{name='Dueno Test';email='dueno@itest.co';password='clave-segura-1';phone='3001112233';asOwner=$true}).body
-$a = (Call Post /auth/register @{name='Jugador A';email='a@itest.co';password='clave-segura-1';phone='3002223344'}).body
-$b = (Call Post /auth/register @{name='Jugador B';email='b@itest.co';password='clave-segura-1';phone='3003334455'}).body
+$own = (Call Post /auth/register @{acceptTerms=$true;name='Dueno Test';email='dueno@itest.co';password='clave-segura-1';phone='3001112233';asOwner=$true}).body
+$a = (Call Post /auth/register @{acceptTerms=$true;name='Jugador A';email='a@itest.co';password='clave-segura-1';phone='3002223344'}).body
+$b = (Call Post /auth/register @{acceptTerms=$true;name='Jugador B';email='b@itest.co';password='clave-segura-1';phone='3003334455'}).body
 Check "dueño con rol owner" ($own.user.role -eq 'owner') $own.user.role
 Check "jugador con rol player" ($a.user.role -eq 'player') $a.user.role
+
+Write-Host "== Consentimiento y páginas legales"
+Check "registro sin acceptTerms -> 400" ((Call Post /auth/register @{name='Sin Acuerdo';email='sa@itest.co';password='clave-segura-1';phone='3001110000'}).code -eq 400) ""
+Check "registro con acceptTerms=false -> 400" ((Call Post /auth/register @{acceptTerms=$false;name='Sin Acuerdo';email='sa@itest.co';password='clave-segura-1';phone='3001110000'}).code -eq 400) ""
+Check "registro con aceptación -> consentRequired=false" ($a.user.consentRequired -eq $false) "$($a.user.consentRequired)"
+Check "/auth/me trae consentRequired=false" ((Call Get /auth/me $null $a.accessToken).body.consentRequired -eq $false) ""
+Sql "UPDATE users SET terms_accepted_at = NULL, terms_version = NULL WHERE email = 'a@itest.co'" | Out-Null
+Check "sin aceptación guardada -> consentRequired=true" ((Call Get /auth/me $null $a.accessToken).body.consentRequired -eq $true) ""
+Check "POST /auth/consent exige accept=true" ((Call Post /auth/consent @{accept=$false} $a.accessToken).code -eq 400) ""
+Check "POST /auth/consent -> ok" ((Call Post /auth/consent @{accept=$true} $a.accessToken).body.consentRequired -eq $false) ""
+Check "/auth/me vuelve a consentRequired=false" ((Call Get /auth/me $null $a.accessToken).body.consentRequired -eq $false) ""
+$origin = $base -replace '/v1$', ''
+foreach ($pg in @('terminos', 'privacidad', 'eliminar-cuenta', 'soporte')) {
+  $w = Invoke-WebRequest -UseBasicParsing "$origin/legal/$pg"
+  Check "/legal/$pg -> 200 html" ($w.StatusCode -eq 200 -and $w.Headers['Content-Type'] -like 'text/html*' -and $w.Content -match 'Golazo') "$($w.StatusCode)"
+}
+$nf = try { Invoke-WebRequest -UseBasicParsing "$origin/legal/otra" } catch { $_.Exception.Response.StatusCode.value__ }
+Check "/legal/otra -> 404" ($nf -eq 404) "$nf"
 $ot = $own.accessToken; $at = $a.accessToken; $bt = $b.accessToken
 
 Write-Host "== Canchas (dueño)"
@@ -162,7 +180,7 @@ $mine = Call Get /bookings/mine $null $at
 Check "mis reservas lista las propias" ($mine.body.Count -ge 3) "n=$($mine.body.Count)"
 
 Write-Host "== Límites y requisitos"
-$u = Call Post /auth/register @{name='Jugador C';email='c@itest.co';password='clave-segura-1';phone='3004445566'}
+$u = Call Post /auth/register @{acceptTerms=$true;name='Jugador C';email='c@itest.co';password='clave-segura-1';phone='3004445566'}
 $ct = $u.body.accessToken
 Sql "UPDATE users SET phone=NULL WHERE email='c@itest.co';" | Out-Null
 $np = Call Post /bookings @{courtId=$court1;startAt=(Iso $day.AddHours(10));hours=1} $ct
@@ -173,7 +191,7 @@ $many = Call Post /bookings @{courtId=$court1;startAt=(Iso $day.AddHours(20));ho
 Check "4ª reserva sin pagar -> 409 TOO_MANY_UNPAID" ($many.code -eq 409 -and $many.body.code -eq 'TOO_MANY_UNPAID') "$($many.code) $($many.raw)"
 
 Write-Host "== Propiedad de canchas"
-$o2 = (Call Post /auth/register @{name='Otro Dueno';email='dueno2@itest.co';password='clave-segura-1';phone='3009998877';asOwner=$true}).body
+$o2 = (Call Post /auth/register @{acceptTerms=$true;name='Otro Dueno';email='dueno2@itest.co';password='clave-segura-1';phone='3009998877';asOwner=$true}).body
 Check "otro dueño no edita mi cancha (404)" ((Call Patch "/owner/courts/$court1" @{name='Hackeada'} $o2.accessToken).code -eq 404) ""
 $upd = Call Patch "/owner/courts/$court1" @{pricePerHour=95000} $ot
 Check "el dueño sí edita (precio 95000)" ($upd.body.pricePerHour -eq 95000) "$($upd.code) $($upd.raw)"

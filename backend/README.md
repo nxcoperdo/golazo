@@ -58,6 +58,7 @@ Esperan ~1 minuto entre corridas por el límite de intentos de `/auth`. Borran s
 5. Crear el administrador: `docker compose run --rm migrate node dist/scripts/create-admin.js correo "Nombre" "clave-larga"`.
 6. **Respaldos:** `pg_dump` diario **y** el volumen `uploads` (fotos y comprobantes), copiados fuera del VPS.
 7. Opcionales en `.env`: `SMTP_URL`/`MAIL_FROM` (correos), `FCM_SERVICE_ACCOUNT_FILE` (push: JSON de la cuenta de servicio de Firebase guardado en `backend/secrets/fcm.json`, montado como volumen en `docker-compose.yml`, y `FCM_SERVICE_ACCOUNT_FILE=/run/secrets/fcm.json`), `GOOGLE_CLIENT_ID`, `PLATFORM_PAYMENT_ACCOUNTS`.
+8. Legal (tiendas y Ley 1581): `LEGAL_RESPONSIBLE_NAME`, `LEGAL_RESPONSIBLE_ID`, `LEGAL_CONTACT_EMAIL`, `LEGAL_PHONE`, `LEGAL_ADDRESS`, `LEGAL_CITY`. Se muestran en `https://TU-DOMINIO/legal/terminos|privacidad|eliminar-cuenta|soporte` (páginas públicas fuera de `/v1`; sin las variables salen marcadores `[ENTRE CORCHETES]`). Los textos viven en `src/legal/content.ts`; al cambiar el fondo sube `LEGAL_VERSION` y la app vuelve a pedir la aceptación. Ver `docs/tiendas.md`.
 
 La app apunta a `https://TU_DOMINIO/v1` (variable `API_URL` al compilar).
 
@@ -74,11 +75,13 @@ La app apunta a `https://TU_DOMINIO/v1` (variable `API_URL` al compilar).
 
 Errores: `{ "code": "...", "message": "..." }` (validación: `{ message: [...] }`).
 
+**Páginas legales** (sin `/v1`) — `GET /legal/terminos` · `/legal/privacidad` · `/legal/eliminar-cuenta` · `/legal/soporte` · `/legal/version`
+
 **Público**
 `GET /health` · `GET /courts?city&maxPrice&covered&lat&lng&radiusKm&limit&offset` · `GET /courts/:id` ·
 `GET /courts/:id/availability?date=YYYY-MM-DD` · `GET /courts/:id/reviews` · `GET /files/courts/:archivo`
 
-**Cuenta** — `POST /auth/register` (`asOwner` opcional) · `/auth/login` · `/auth/google` · `/auth/refresh` · `/auth/logout` ·
+**Cuenta** — `POST /auth/register` (`acceptTerms: true` obligatorio, `asOwner` opcional) · `POST /auth/consent` (`{accept:true}`; `GET /auth/me` trae `consentRequired`) · `/auth/login` · `/auth/google` · `/auth/refresh` · `/auth/logout` ·
 `GET|PATCH|DELETE /auth/me` · `POST /auth/change-password` · `/auth/forgot-password` · `/auth/reset-password`
 
 **Jugador** — `POST /bookings` · `GET /bookings/mine` · `GET /bookings/:id` · `POST /bookings/:id/cancel` ·
@@ -91,7 +94,7 @@ Errores: `{ "code": "...", "message": "..." }` (validación: `{ message: [...] }
 `POST /owner/payments/:id/approve|reject` · `GET /owner/stats?from&to&courtId`
 
 **Admin** (`role=admin`) — `GET /admin/users` · `POST /admin/users/:id/suspend|restore` · `DELETE /admin/users/:id` ·
-`GET /admin/courts` · `POST /admin/courts/:id/suspend|reactivate` · `GET /admin/payments?kind&status` ·
+`GET /admin/courts` · `POST /admin/courts/:id/suspend|reactivate` · `POST /admin/courts/:id/subscription-payment` (`{amount?, note?}`: mensualidad cobrada fuera de la app, abre 30 días y activa) · `GET /admin/payments?kind&status` ·
 `POST /admin/payments/:id/approve|reject` · `GET /admin/review-reports` · `POST /admin/reviews/:id/hide|dismiss` ·
 `GET /admin/transactions` · `GET /admin/metrics` · `POST /admin/jobs/run`
 

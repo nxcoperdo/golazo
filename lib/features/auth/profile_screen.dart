@@ -6,6 +6,7 @@ import '../../core/google_auth.dart';
 import '../../core/validators.dart';
 import '../../core/widgets/auth_ui.dart';
 import '../../core/widgets/design.dart';
+import '../../core/widgets/legal_consent.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
@@ -101,6 +102,27 @@ class ProfileScreen extends ConsumerWidget {
             icon: Icons.lock_outline,
             onTap: () => _changePassword(context, ref),
           ),
+        ),
+        const SizedBox(height: 4),
+        SoftCard(
+          padding: EdgeInsets.zero,
+          margin: EdgeInsets.zero,
+          child: Column(children: [
+            for (final (i, page) in LegalPage.values.indexed) ...[
+              if (i > 0) const Divider(height: 1, color: Color(0x14143E2A)),
+              _Row(
+                label: null,
+                value: page.label,
+                icon: switch (page) {
+                  LegalPage.terms => Icons.description_outlined,
+                  LegalPage.privacy => Icons.privacy_tip_outlined,
+                  LegalPage.support => Icons.support_agent_outlined,
+                },
+                trailing: const Icon(Icons.open_in_new, size: 16, color: AuthColors.muted),
+                onTap: () => ref.read(openUrlProvider)(page.uri),
+              ),
+            ],
+          ]),
         ),
         const SizedBox(height: 28),
         OutlineAction(

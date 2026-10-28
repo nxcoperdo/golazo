@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../data/models.dart';
 import '../data/providers.dart';
 import '../features/admin/admin_shell.dart';
+import '../features/auth/consent_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/password_reset_screens.dart';
 import '../features/auth/profile_screen.dart';
@@ -58,6 +59,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     if (user == null) {
       return _publicPaths.contains(path) ? null : '/login';
     }
+    // Sin la aceptación vigente de los textos legales no se puede usar la app.
+    if (user.consentRequired) return path == '/consent' ? null : '/consent';
+    if (path == '/consent') return homeFor(user.role);
     // Con sesión no tiene sentido ver login/registro/splash: se va al inicio de su rol.
     if (path == '/' || path == '/splash' || path == '/login' || path == '/register') {
       return homeFor(user.role);
@@ -78,6 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordScreen()),
       GoRoute(path: '/reset', builder: (_, s) => ResetPasswordScreen(token: s.uri.queryParameters['token'])),
       GoRoute(path: '/verify', builder: (_, s) => VerifyEmailScreen(token: s.uri.queryParameters['token'])),
+      GoRoute(path: '/consent', builder: (_, _) => const ConsentScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
 

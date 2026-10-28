@@ -72,6 +72,12 @@ class SessionNotifier extends AsyncNotifier<AppUser?> {
     state = await AsyncValue.guard(_api.restore);
   }
 
+  /// Guarda la aceptación de los textos legales y refresca al usuario.
+  Future<void> acceptTerms() async {
+    await _api.acceptTerms();
+    await reload();
+  }
+
   /// Vuelve a pedir los datos del usuario (celular, verificación de correo…).
   Future<void> reload() async {
     final u = await _api.restore();
@@ -201,11 +207,6 @@ final ownerBookingsProvider = FutureProvider.autoDispose.family<List<OwnerBookin
   ref.watch(userIdProvider);
   final today = coToday();
   return ref.watch(apiProvider).ownerBookings(from: today, to: today.add(Duration(days: days - 1)));
-});
-
-final subscriptionConfigProvider = FutureProvider.autoDispose<SubscriptionConfig>((ref) {
-  ref.watch(userIdProvider);
-  return ref.watch(apiProvider).subscriptionConfig();
 });
 
 /// Estadísticas de los últimos [days] días.

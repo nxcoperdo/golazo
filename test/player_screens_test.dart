@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golazo/core/widgets/legal_consent.dart';
 import 'package:golazo/data/models.dart';
 import 'package:golazo/data/providers.dart';
 import 'package:golazo/features/auth/profile_screen.dart';
@@ -101,10 +102,13 @@ void tallPhone(WidgetTester t) {
   addTearDown(t.view.reset);
 }
 
-Future<void> pumpScreen(WidgetTester t, Widget screen, FakeApi api) async {
+Future<void> pumpScreen(WidgetTester t, Widget screen, FakeApi api, {List<Uri>? opened}) async {
   tallPhone(t);
   await t.pumpWidget(ProviderScope(
-    overrides: [apiProvider.overrideWithValue(api)],
+    overrides: [
+      apiProvider.overrideWithValue(api),
+      if (opened != null) openUrlProvider.overrideWithValue((u) async { opened.add(u); return true; }),
+    ],
     child: MaterialApp(home: screen),
   ));
   await t.pumpAndSettle();
@@ -248,6 +252,17 @@ void main() {
       expect(find.text('Confirmado'), findsOneWidget);
       expect(find.text('+57 3001234567'), findsOneWidget);
       expect(find.text('Borrar mi cuenta'), findsOneWidget);
+    });
+
+    testWidgets('enlaces legales: términos, privacidad y soporte abren las páginas del servidor', (t) async {
+      final opened = <Uri>[];
+      await pumpScreen(t, const ProfileScreen(embedded: true), PlayerApi(user: me), opened: opened);
+      for (final label in ['Términos y Condiciones', 'Política de privacidad', 'Soporte']) {
+        await t.ensureVisible(find.text(label));
+        await t.tap(find.text(label));
+        await t.pump();
+      }
+      expect(opened.map((u) => u.path), ['/legal/terminos', '/legal/privacidad', '/legal/soporte']);
     });
 
     testWidgets('correo sin confirmar ofrece Reenviar', (t) async {

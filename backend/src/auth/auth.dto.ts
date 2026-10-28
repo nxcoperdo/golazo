@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
+import { Equals, IsBoolean, IsEmail, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
 
 /** Celular colombiano: 10 dígitos que empiezan por 3. Solo dato de contacto. */
 export const PHONE_REGEX = /^3\d{9}$/;
@@ -11,6 +11,14 @@ export class RegisterDto {
   phone!: string;
   /** true = se registra como dueño de cancha. El rol admin nunca se asigna desde la API. */
   @IsOptional() @IsBoolean() asOwner?: boolean;
+  /** Autorización de datos y términos (Ley 1581): obligatoria para crear la cuenta. */
+  @Equals(true, { message: 'Debes aceptar los términos y la política de privacidad' })
+  acceptTerms!: boolean;
+}
+
+export class ConsentDto {
+  @Equals(true, { message: 'Debes aceptar los términos y la política de privacidad' })
+  accept!: boolean;
 }
 
 export class LoginDto {

@@ -10,6 +10,7 @@ import 'package:golazo/core/format.dart';
 import 'package:golazo/core/location.dart';
 import 'package:golazo/core/widgets/design.dart' show PillSwitch;
 import 'package:golazo/core/widgets/ui.dart';
+import 'package:golazo/core/widgets/legal_consent.dart';
 import 'package:golazo/data/models.dart';
 import 'package:golazo/data/providers.dart';
 import 'package:golazo/features/owner/court_form_screen.dart';
@@ -146,13 +147,6 @@ class OwnerApi extends FakeApi {
     return ownerCourtList.firstWhere((c) => c.id == courtId);
   }
 
-  @override
-  Future<SubscriptionConfig> subscriptionConfig() async => const SubscriptionConfig(
-      price: 100000, periodDays: 30, accounts: [PaymentMethod(label: 'Nequi', account: '300 999 0011', holder: 'Golazo SAS')]);
-
-  @override
-  Future<void> uploadSubscriptionProof(String courtId, Uint8List bytes, String filename) async =>
-      calls.add('sub:$courtId:$filename');
 }
 
 Court mkOwnerCourt(String id, String name, {CourtStatus status = CourtStatus.active, CourtSubscription? sub, List<PaymentMethod> methods = const [], List<int> types = const [7]}) => Court(
@@ -181,13 +175,14 @@ void tallPhone(WidgetTester t) {
   addTearDown(t.view.reset);
 }
 
-Future<void> pumpScreen(WidgetTester t, Widget screen, FakeApi api, {Locate? locate}) async {
+Future<void> pumpScreen(WidgetTester t, Widget screen, FakeApi api, {Locate? locate, List<Uri>? opened}) async {
   tallPhone(t);
   await t.pumpWidget(ProviderScope(
     overrides: [
       apiProvider.overrideWithValue(api),
       pickImageProvider.overrideWithValue((_) async => PickedImage(Uint8List.fromList([1]), 'captura.jpg')),
       if (locate != null) locationProvider.overrideWithValue(locate),
+      if (opened != null) openUrlProvider.overrideWithValue((u) async { opened.add(u); return true; }),
     ],
     child: MaterialApp(home: screen),
   ));
@@ -461,8 +456,11 @@ void main() {
       expect(find.text('Cuentas para pagos'), findsOneWidget);
       expect(find.text('Nequi · 300 456 7890'), findsOneWidget);
       expect(find.text('Vence en 3 días'), findsOneWidget);
-      expect(find.textContaining(r'Mensualidad · $100.000'), findsOneWidget);
-      expect(find.text('Renovar mensualidad'), findsOneWidget);
+      // El cobro es fuera de la app: la tarjeta solo informa el estado, sin precios ni pagos.
+      expect(find.text('Mensualidad'), findsOneWidget);
+      expect(find.textContaining(r'$100.000'), findsNothing);
+      expect(find.text('Renovar mensualidad'), findsNothing);
+      expect(find.text('Contactar soporte'), findsOneWidget);
     });
 
     testWidgets('ocultar la cancha pide confirmación', (t) async {
@@ -506,33 +504,19 @@ void main() {
       expect(api.updated!['requiresDeposit'], true);
     });
 
-    testWidgets('pagar la mensualidad: cuenta de la plataforma y envío del comprobante', (t) async {
+    testWidgets('cancha pendiente: solo estado y contacto con soporte, sin pagos en la app', (t) async {
+      final opened = <Uri>[];
       final api = api0(status: CourtStatus.pending);
-      await pumpScreen(t, CourtManageScreen(courtId: 'c1'), api);
-      expect(find.text('Pendiente'), findsOneWidget);
-      await t.ensureVisible(find.text('Pagar mensualidad'));
+      await pumpScreen(t, CourtManageScreen(courtId: 'c1'), api, opened: opened);
+      expect(find.text('Pendiente de activación'), findsOneWidget);
+      expect(find.text('Oculta hasta que Golazo la active.'), findsOneWidget);
+      expect(find.text('Pagar mensualidad'), findsNothing);
+      expect(find.text('Transfiere a la cuenta de la plataforma'), findsNothing);
+      await t.ensureVisible(find.text('Contactar soporte'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Pagar mensualidad'));
+      await t.tap(find.text('Contactar soporte'));
       await t.pumpAndSettle();
-      expect(find.text('Transfiere a la cuenta de la plataforma'), findsOneWidget);
-      expect(find.text('Nequi · 300 999 0011'), findsOneWidget);
-      final send = find.widgetWithText(FilledButton, 'Enviar comprobante');
-      expect(t.widget<FilledButton>(send).onPressed, isNull);
-      await t.tap(find.text('Subir comprobante'));
-      await t.pumpAndSettle();
-      expect(find.text('captura.jpg'), findsOneWidget);
-      await t.tap(send);
-      await t.pumpAndSettle();
-      expect(api.calls, ['sub:c1:captura.jpg']);
-      expect(find.textContaining('Comprobante enviado'), findsOneWidget);
-    });
-
-    testWidgets('mensualidad en revisión: estado azul y botón deshabilitado', (t) async {
-      final api = api0(status: CourtStatus.pending, sub: const CourtSubscription(pendingReview: true));
-      await pumpScreen(t, CourtManageScreen(courtId: 'c1'), api);
-      expect(find.text('En revisión'), findsOneWidget);
-      await t.ensureVisible(find.text('Pagar mensualidad'));
-      expect(t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Pagar mensualidad')).onPressed, isNull);
+      expect(opened.single.path, '/legal/soporte');
     });
   });
 

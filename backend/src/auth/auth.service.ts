@@ -11,6 +11,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import type { PoolClient } from 'pg';
 import { Db, UNIQUE_VIOLATION, pgCode } from '../db/db.service.js';
+import { LEGAL_VERSION } from '../legal/content.js';
 
 export type Role = 'player' | 'owner' | 'admin';
 
@@ -24,15 +25,21 @@ export interface UserRow {
   suspended_at: Date | null;
   deleted_at: Date | null;
   email_verified_at: Date | null;
+  terms_accepted_at: Date | null;
+  terms_version: string | null;
 }
 
 export interface AuthResult {
   accessToken: string;
   refreshToken: string;
-  user: { id: string; name: string; email: string | null; phone: string | null; role: Role; emailVerified: boolean };
+  user: { id: string; name: string; email: string | null; phone: string | null; role: Role; emailVerified: boolean; consentRequired: boolean };
 }
 
 const REFRESH_TTL_DAYS = 30;
+
+/** true si el usuario nunca aceptó los textos legales o aceptó una versión anterior. */
+export const consentRequired = (u: { terms_accepted_at: Date | null; terms_version: string | null }): boolean =>
+  !u.terms_accepted_at || (u.terms_version ?? '') < LEGAL_VERSION;
 
 const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex');
 
@@ -61,9 +68,9 @@ export class AuthService {
     const hash = await argon2.hash(input.password);
     try {
       const { rows } = await this.db.query<UserRow>(
-        `INSERT INTO users (name, email, phone, password_hash, role)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [input.name.trim(), email, input.phone, hash, input.asOwner ? 'owner' : 'player'],
+        `INSERT INTO users (name, email, phone, password_hash, role, terms_accepted_at, terms_version)
+         VALUES ($1, $2, $3, $4, $5, now(), $6) RETURNING *`,
+        [input.name.trim(), email, input.phone, hash, input.asOwner ? 'owner' : 'player', LEGAL_VERSION],
       );
       return this.issue(rows[0]!);
     } catch (e) {
@@ -161,6 +168,15 @@ export class AuthService {
     return result;
   }
 
+  /** Registra que el usuario aceptó la versión vigente de los textos legales. */
+  async acceptTerms(userId: string): Promise<{ consentRequired: false; version: string }> {
+    await this.db.query('UPDATE users SET terms_accepted_at = now(), terms_version = $2 WHERE id = $1', [
+      userId,
+      LEGAL_VERSION,
+    ]);
+    return { consentRequired: false, version: LEGAL_VERSION };
+  }
+
   async logout(token: string): Promise<void> {
     await this.db.query('UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL', [
       sha256(token),
@@ -200,6 +216,7 @@ export class AuthService {
         phone: user.phone,
         role: user.role,
         emailVerified: user.email_verified_at != null,
+        consentRequired: consentRequired(user),
       },
     };
   }

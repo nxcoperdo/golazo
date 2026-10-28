@@ -48,7 +48,7 @@ function Sql($q) { $q | docker compose exec -T db psql -U golazo -d golazo -t -A
 function Iso($d) { $d.ToUniversalTime().ToString("yyyy-MM-ddTHH:00:00Z") }
 function Has($list, $id) { @($list | Where-Object { $_.id -eq $id }).Count -ge 1 }
 function Register($name, $email, $owner) {
-  $r = (Call Post /auth/register @{ name = $name; email = $email; password = $pwd1; phone = '3001112233'; asOwner = $owner }).body
+  $r = (Call Post /auth/register @{acceptTerms=$true; name = $name; email = $email; password = $pwd1; phone = '3001112233'; asOwner = $owner }).body
   $script:ids += $r.user.id
   return $r
 }
@@ -123,6 +123,19 @@ Check "cancha activa" ($d.status -eq 'active') $d.status
 Check "vigencia de 30 días" (([datetime]$d.subscription.activeUntil - (Get-Date).Date).Days -in 29..31) $d.subscription.activeUntil
 Check "ya visible en el buscador" (Has (Call Get '/courts?city=Bogot%C3%A1' $null $null).body $court) ""
 Check "el dueño recibió el aviso de aprobación" (@((Call Get /notifications $null $ot).body.items | Where-Object { $_.title -eq 'Mensualidad aprobada' }).Count -eq 1) ""
+
+Write-Host "== Mensualidad registrada por el admin (cobro fuera de la app)"
+$cm = (Call Post /owner/courts @{ name = 'Cancha Manual'; city = 'Bogotá'; address = 'Cra 8 # 8-8'; lat = 4.7; lng = -74.05; covered = $true; pricePerHour = 80000; openHour = 0; closeHour = 24; requiresDeposit = $false } $ot).body
+Check "cancha nueva nace pendiente" ($cm.status -eq 'pending') $cm.status
+Check "dueño no registra mensualidad (403)" ((Call Post "/admin/courts/$($cm.id)/subscription-payment" @{} $ot).code -eq 403) ""
+Check "cancha inexistente -> 404" ((Call Post "/admin/courts/00000000-0000-0000-0000-000000000000/subscription-payment" @{} $at).code -eq 404) ""
+$mp = Call Post "/admin/courts/$($cm.id)/subscription-payment" @{ amount = 100000; note = 'Nequi 25 oct' } $at
+Check "admin registra la mensualidad" ($mp.code -eq 200 -and $mp.body.status -eq 'approved') "$($mp.code) $($mp.raw)"
+$dm = (Call Get "/owner/courts/$($cm.id)" $null $ot).body
+Check "la cancha queda activa" ($dm.status -eq 'active') $dm.status
+Check "vigencia de 30 días" (([datetime]$dm.subscription.activeUntil - (Get-Date).Date).Days -in 29..31) $dm.subscription.activeUntil
+$mp2 = Call Post "/admin/courts/$($cm.id)/subscription-payment" @{} $at
+Check "renovar continúa el periodo (60 días)" (([datetime](Call Get "/owner/courts/$($cm.id)" $null $ot).body.subscription.activeUntil - (Get-Date).Date).Days -in 59..61) "$($mp2.code)"
 
 Write-Host "== Fotos de la cancha"
 $ph = Upload "/owner/courts/$court/photos" photo $png $ot

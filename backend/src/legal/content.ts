@@ -6,7 +6,7 @@
  */
 
 /** Sube esta versión cuando cambie el fondo de los textos: la app vuelve a pedir la aceptación. */
-export const LEGAL_VERSION = '2026-10-25';
+export const LEGAL_VERSION = '2026-10-29';
 
 export interface LegalData {
   name: string;
@@ -30,6 +30,17 @@ const PAGES: Record<LegalPage, string> = {
 };
 
 export const LEGAL_PAGES = Object.keys(PAGES) as LegalPage[];
+
+/**
+ * Enlace de WhatsApp (wa.me) a partir de un celular colombiano escrito de cualquier forma
+ * ("321 942 9385", "+57 321-942-9385"). Devuelve null si no parece un celular válido
+ * (p. ej. el marcador "[TELÉFONO]" cuando aún no se configuró LEGAL_PHONE).
+ */
+export function whatsappLink(phone: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  const national = digits.length === 12 && digits.startsWith('57') ? digits.slice(2) : digits;
+  return /^3\d{9}$/.test(national) ? `https://wa.me/57${national}` : null;
+}
 
 function responsible(d: LegalData): string {
   const lines = [
@@ -74,7 +85,8 @@ function terms(d: LegalData): string {
 <li>Las devoluciones de dinero las coordinan directamente el jugador y el dueño, porque Golazo no maneja los pagos.</li>
 </ul>
 
-<h2>6. Reseñas y contenido de los usuarios</h2>
+<h2>6. Chat, reseñas y contenido de los usuarios</h2>
+<p>Golazo ofrece un chat entre el jugador y el dueño de la cancha mientras exista una reserva vigente (queda en solo lectura cuando la reserva termina y se vuelve a abrir si reservas de nuevo en esa cancha) y un chat con soporte. Puedes enviar texto y fotos. Está prohibido el acoso, el contenido ofensivo, ilegal o engañoso, y compartir datos de terceros sin permiso. Puedes reportar un mensaje o bloquear a la otra persona. <strong>El equipo de Golazo puede leer los chats</strong>, incluidos los de jugador y dueño, para dar soporte, atender reportes y proteger a los usuarios. Podemos ocultar mensajes y suspender cuentas que incumplan estas reglas.</p>
 <p>Los jugadores pueden calificar y comentar las canchas en las que reservaron. Eres responsable de lo que publicas: no puede ser ofensivo, falso, discriminatorio ni infringir derechos de terceros. Cualquier usuario puede reportar una reseña y Golazo puede ocultarla o eliminarla. Para reportar contenido o conductas escribe al correo de soporte.</p>
 
 <h2>7. Dueños de cancha</h2>
@@ -117,6 +129,7 @@ function privacy(d: LegalData): string {
 <ul>
 <li><strong>Cuenta:</strong> nombre, correo electrónico, celular (como dato de contacto), rol (jugador o dueño) y contraseña (guardada cifrada, nunca en texto plano). Si entras con Google, el nombre y el correo que Google nos comparte.</li>
 <li><strong>Uso del servicio:</strong> reservas, pagos reportados, reseñas y reportes, avisos que te enviamos.</li>
+<li><strong>Mensajes:</strong> el texto y las fotos que envías por el chat con el dueño de una cancha o con soporte. El equipo de Golazo puede leerlos para dar soporte, atender reportes y garantizar la seguridad; se conservan 12 meses y luego se eliminan.</li>
 <li><strong>Imágenes:</strong> fotos de canchas y comprobantes de pago que subes. Los comprobantes solo los ven quien los subió, el dueño de la cancha y los administradores.</li>
 <li><strong>Ubicación aproximada:</strong> solo si lo permites y usas «Cerca de mí», para ordenar canchas por distancia. No la guardamos de forma permanente.</li>
 <li><strong>Dispositivo:</strong> un identificador de notificaciones push (token) y datos técnicos básicos como la dirección IP en los registros del servidor.</li>
@@ -185,12 +198,19 @@ function deleteAccount(d: LegalData): string {
 <p>La eliminación no se puede deshacer. Consulta también la <a href="/legal/privacidad">Política de Tratamiento de Datos Personales</a>.</p>`;
 }
 
+function phoneLine(phone: string): string {
+  const wa = whatsappLink(phone);
+  return wa
+    ? `WhatsApp: <a href="${esc(wa)}">${esc(phone)}</a> (toca para escribirnos)`
+    : `Teléfono / WhatsApp: ${esc(phone)}`;
+}
+
 function support(d: LegalData): string {
   return `
 <p>¿Tienes una pregunta, un problema con una reserva o quieres reportar una reseña o conducta indebida?</p>
 <ul>
 <li>Correo: <a href="mailto:${esc(d.email)}">${esc(d.email)}</a></li>
-<li>Teléfono / WhatsApp: ${esc(d.phone)}</li>
+<li>${phoneLine(d.phone)}</li>
 </ul>
 <p>Si eres dueño de cancha y necesitas activar o renovar tu cancha, escríbenos por el mismo medio indicando el nombre de la cancha y el correo de tu cuenta.</p>
 <p>Consulta también los <a href="/legal/terminos">Términos y Condiciones</a>, la <a href="/legal/privacidad">Política de privacidad</a> y cómo <a href="/legal/eliminar-cuenta">eliminar tu cuenta</a>.</p>`;

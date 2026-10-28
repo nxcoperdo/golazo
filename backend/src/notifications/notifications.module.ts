@@ -8,6 +8,6 @@ import { PushService } from './push.service.js';
 @Module({
   controllers: [NotificationsController],
   providers: [NotificationsService, PushService, MailerService],
-  exports: [NotificationsService, MailerService],
+  exports: [NotificationsService, MailerService, PushService],
 })
 export class NotificationsModule {}

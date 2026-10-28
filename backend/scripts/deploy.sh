@@ -9,7 +9,7 @@ cd "$REPO_DIR"
 git pull
 
 cd backend
-docker compose build
+docker compose --profile tools build
 docker compose run --rm migrate
 docker compose up -d api
 

@@ -11,7 +11,7 @@ $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Env
 $base = 'http://127.0.0.1:3000/v1'
 $script:pass = 0; $script:fail = 0
 
-function Call($method, $path, $body, $token) {
+function Call($method, $path, $body, $token, $tries = 0) {
   $h = @{}; if ($token) { $h.Authorization = "Bearer $token" }
   try {
     $args2 = @{ Method = $method; Uri = "$base$path"; Headers = $h; ContentType = 'application/json' }
@@ -20,6 +20,8 @@ function Call($method, $path, $body, $token) {
     return @{ code = 200; body = $r }
   } catch {
     $code = [int]$_.Exception.Response.StatusCode
+    # /auth admite 10 peticiones por minuto: esperar y repetir en vez de fallar en cascada.
+    if ($code -eq 429 -and $tries -lt 6) { Start-Sleep 15; return Call $method $path $body $token ($tries + 1) }
     $msg = $_.ErrorDetails.Message
     $j = $null; try { $j = $msg | ConvertFrom-Json } catch {}
     return @{ code = $code; body = $j; raw = $msg }
@@ -43,7 +45,7 @@ UPDATE courts SET status = 'active' WHERE id = '$id';
 function Iso($d) { $d.ToUniversalTime().ToString("yyyy-MM-ddTHH:00:00Z") }
 
 # Limpieza previa de datos de prueba
-Sql "DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM payments WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM refunds WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM bookings WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM users WHERE email LIKE '%@itest.co';" | Out-Null
+Sql "DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM payments WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM chat_blocks WHERE blocker_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR blocked_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM chat_threads WHERE participant_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM refunds WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM bookings WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM users WHERE email LIKE '%@itest.co';" | Out-Null
 
 Write-Host "== Registro"
 $own = (Call Post /auth/register @{acceptTerms=$true;name='Dueno Test';email='dueno@itest.co';password='clave-segura-1';phone='3001112233';asOwner=$true}).body
@@ -122,6 +124,35 @@ $upd2 = Call Patch "/owner/courts/$court2" @{courtType=11} $ot
 Check "PATCH con la forma antigua (courtType) también funciona" (($upd2.body.courtTypes -join ',') -eq '11') "$($upd2.code) $($upd2.raw)"
 $null = Call Patch "/owner/courts/$court2" @{courtTypes=@(5)} $ot
 
+Write-Host "== Tipos con precio propio y calendario independiente"
+$day = (Get-Date).ToUniversalTime().Date.AddDays(2).AddHours(15)   # 10:00 a. m. Colombia
+$c3 = Call Post /owner/courts @{name='Cancha Dos Tipos';city="Bogotá";address='Cra 9 # 9-9';lat=4.7;lng=-74.05;covered=$true;variants=@(@{courtType=11;pricePerHour=150000},@{courtType=5;pricePerHour=60000});openHour=0;closeHour=24;requiresDeposit=$false} $ot
+Check "crear con variants -> 200/201" ($c3.code -eq 200 -or $c3.code -eq 201) "$($c3.code) $($c3.raw)"
+$court3 = $c3.body.id
+Check "variants ordenadas por tipo con su precio" ((($c3.body.variants | ForEach-Object { "$($_.courtType):$($_.pricePerHour)" }) -join ',') -eq '5:60000,11:150000') ""
+Check "pricePerHour de la cancha = el más barato" ($c3.body.pricePerHour -eq 60000) "$($c3.body.pricePerHour)"
+Check "courtTypes derivado = 5,11" (($c3.body.courtTypes -join ',') -eq '5,11') ""
+Check "crear sin tipos ni variants -> 400" ((Call Post /owner/courts @{name='Sin Tipos';city='Bogotá';address='Cra 1 # 1-1';lat=4;lng=-74;covered=$true;openHour=1;closeHour=2;requiresDeposit=$false} $ot).code -eq 400) ""
+Check "variants con tipo repetido -> 400" ((Call Post /owner/courts ($bad + @{variants=@(@{courtType=5;pricePerHour=5000},@{courtType=5;pricePerHour=6000})}) $ot).code -eq 400) ""
+Activate $court3
+$t3 = Iso $day
+$f5 = Call Post /bookings @{courtId=$court3;startAt=$t3;hours=1;courtType=5} $at
+Check "reserva Fútbol 5 a $60.000" (($f5.code -eq 200 -or $f5.code -eq 201) -and $f5.body.total -eq 60000 -and $f5.body.courtType -eq 5) "$($f5.code) $($f5.raw)"
+$f11 = Call Post /bookings @{courtId=$court3;startAt=$t3;hours=2;courtType=11} $bt
+Check "Fútbol 11 a la misma hora sí se puede, a $150.000 x 2 h" (($f11.code -eq 200 -or $f11.code -eq 201) -and $f11.body.total -eq 300000 -and $f11.body.courtType -eq 11) "$($f11.code) $($f11.raw)"
+Check "otra reserva de Fútbol 5 a esa hora -> 409" ((Call Post /bookings @{courtId=$court3;startAt=$t3;hours=1;courtType=5} $bt).code -eq 409) ""
+Check "tipo que la cancha no ofrece -> 422" ((Call Post /bookings @{courtId=$court3;startAt=(Iso $day.AddHours(5));hours=1;courtType=7} $bt).code -eq 422) ""
+$av5 = (Call Get "/courts/$court3/availability?date=$($day.ToString('yyyy-MM-dd'))&courtType=5" $null $null).body
+$av11 = (Call Get "/courts/$court3/availability?date=$($day.ToString('yyyy-MM-dd'))&courtType=11" $null $null).body
+$h = ($day.AddHours(-5)).Hour
+Check "disponibilidad por tipo: F5 ocupa 1 h, F11 ocupa 2 h" ((@($av5.hours | Where-Object { -not $_.free }).Count -ge 1) -and (@($av11.hours | Where-Object { -not $_.free }).Count -ge @($av5.hours | Where-Object { -not $_.free }).Count + 1)) ""
+Check "disponibilidad con tipo ajeno -> 404" ((Call Get "/courts/$court3/availability?date=$($day.ToString('yyyy-MM-dd'))&courtType=7" $null $null).code -eq 404) ""
+$up3 = Call Patch "/owner/courts/$court3" @{variants=@(@{courtType=5;pricePerHour=65000})} $ot
+Check "el dueño quita el Fútbol 11 y sube el precio del 5" (($up3.body.variants.Count -eq 1) -and $up3.body.variants[0].pricePerHour -eq 65000) "$($up3.code) $($up3.raw)"
+Check "ya no se puede reservar el tipo quitado -> 422" ((Call Post /bookings @{courtId=$court3;startAt=(Iso $day.AddHours(8));hours=1;courtType=11} $bt).code -eq 422) ""
+$blk = Call Post "/owner/courts/$court3/blocks" @{startAt=(Iso $day.AddHours(9));hours=1} $ot
+Check "bloqueo sin tipo -> 200/201" ($blk.code -eq 200 -or $blk.code -eq 201) "$($blk.code) $($blk.raw)"
+
 Write-Host "== Reservas: anticipo y doble reserva"
 $day = (Get-Date).ToUniversalTime().Date.AddDays(2).AddHours(15)   # 10:00 a. m. Colombia
 $r1 = Call Post /bookings @{courtId=$court1;startAt=(Iso $day);hours=2} $at
@@ -197,6 +228,6 @@ $upd = Call Patch "/owner/courts/$court1" @{pricePerHour=95000} $ot
 Check "el dueño sí edita (precio 95000)" ($upd.body.pricePerHour -eq 95000) "$($upd.code) $($upd.raw)"
 
 # Limpieza
-Sql "DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM payments WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM refunds WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM bookings WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM users WHERE email LIKE '%@itest.co';" | Out-Null
+Sql "DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM payments WHERE court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM chat_blocks WHERE blocker_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR blocked_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM chat_threads WHERE participant_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM refunds WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM bookings WHERE player_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co') OR court_id IN (SELECT id FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co')); DELETE FROM courts WHERE owner_id IN (SELECT id FROM users WHERE email LIKE '%@itest.co'); DELETE FROM users WHERE email LIKE '%@itest.co';" | Out-Null
 Write-Host ""
 Write-Host "RESULTADO: $script:pass OK, $script:fail FALLAS"

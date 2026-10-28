@@ -11,6 +11,7 @@ import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import '../booking/reviews_section.dart';
+import '../chat/chats_screen.dart';
 
 enum _Group { upcoming, past }
 
@@ -96,7 +97,8 @@ class _BookingCard extends ConsumerWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(b.courtName, style: authText(16, weight: 800)),
               const SizedBox(height: 4),
-              Text(rangeLabel(b.startAt, b.hours), style: authText(12, weight: 600, color: const Color(0xFF748179))),
+              Text([?b.typeLabel, rangeLabel(b.startAt, b.hours)].join(' · '),
+                  style: authText(12, weight: 600, color: const Color(0xFF748179))),
             ]),
           ),
           const SizedBox(width: 12),
@@ -136,6 +138,19 @@ class _BookingCard extends ConsumerWidget {
                 ),
               ),
           ]),
+        ],
+        // Chat con el dueño mientras la reserva esté vigente.
+        if (upcoming && b.status != BookingStatus.cancelled) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+              onPressed: () => openBookingChat(context, ref, b.id),
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: const Text('Chatear con el dueño'),
+            ),
+          ),
         ],
       ]),
     );

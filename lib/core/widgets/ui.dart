@@ -5,8 +5,9 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../data/models.dart' show courtTypeLabel, courtTypes;
+import '../../data/models.dart' show CourtVariant, courtTypeLabel, courtTypePlayers, courtTypes;
 import '../../data/providers.dart';
+import 'auth_ui.dart' show AuthField;
 
 /// Las listas con `padding` propio no reciben el espacio de la barra inferior flotante
 /// (la barra tapa el final del contenido): este método suma ese espacio abajo.
@@ -14,31 +15,107 @@ extension NavInset on EdgeInsets {
   EdgeInsets withNav(BuildContext context) => copyWith(bottom: bottom + MediaQuery.paddingOf(context).bottom);
 }
 
-/// Elegir los tipos de cancha (Fútbol 5, 6, 7, 8 u 11): se puede marcar más de uno,
-/// pero siempre debe quedar al menos uno.
-class CourtTypePicker extends StatelessWidget {
-  const CourtTypePicker({super.key, required this.value, required this.onChanged});
-  final List<int> value;
-  final ValueChanged<List<int>> onChanged;
+/// Tipos de cancha que ofrece el dueño, cada uno con su precio por hora.
+/// Cada tipo tiene además su propio calendario de reservas. Siempre queda al menos uno.
+/// Informa cada cambio con [onChanged] (un precio vacío o inválido llega como 0).
+class CourtVariantsEditor extends StatefulWidget {
+  const CourtVariantsEditor({super.key, required this.initial, required this.onChanged});
+  final List<CourtVariant> initial;
+  final ValueChanged<List<CourtVariant>> onChanged;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Tipos de cancha', style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 4),
-        Text('Marca todos los que ofrece (puedes elegir varios).', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 8),
+  State<CourtVariantsEditor> createState() => _CourtVariantsEditorState();
+}
+
+class _CourtVariantsEditorState extends State<CourtVariantsEditor> {
+  late final Map<int, TextEditingController> _prices = {
+    for (final v in [...widget.initial]..sort((a, b) => a.type.compareTo(b.type)))
+      v.type: TextEditingController(text: v.pricePerHour > 0 ? v.pricePerHour.toString() : ''),
+  };
+
+  @override
+  void dispose() {
+    for (final c in _prices.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  List<CourtVariant> get _value => [
+        for (final t in (_prices.keys.toList()..sort()))
+          CourtVariant(type: t, pricePerHour: int.tryParse(_prices[t]!.text.replaceAll(RegExp(r'\D'), '')) ?? 0),
+      ];
+
+  void _emit() => widget.onChanged(_value);
+
+  String? _validatePrice(String? v) {
+    final n = int.tryParse((v ?? '').replaceAll(RegExp(r'\D'), ''));
+    return (n == null || n < 1000 || n > 1000000) ? 'Entre \$1.000 y \$1.000.000' : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context).textTheme;
+    final missing = [for (final t in courtTypes) if (!_prices.containsKey(t)) t];
+    final types = _prices.keys.toList()..sort();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Tipos de cancha y precios', style: theme.titleMedium),
+      const SizedBox(height: 4),
+      Text(
+        'Agrega cada tipo que ofreces y ponle su precio por hora. Cada tipo tiene su propio horario: '
+        'si alguien reserva Fútbol 5, el Fútbol 11 sigue libre.',
+        style: theme.bodySmall,
+      ),
+      const SizedBox(height: 12),
+      for (final t in types)
+        Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text('${courtTypeLabel(t)} · ${courtTypePlayers(t)}', style: theme.titleSmall),
+                ),
+                if (types.length > 1)
+                  IconButton(
+                    tooltip: 'Quitar ${courtTypeLabel(t)}',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() {
+                      _prices.remove(t)!.dispose();
+                      _emit();
+                    }),
+                  ),
+              ]),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: AuthField(
+                  label: 'Precio por hora (COP)',
+                  icon: Icons.attach_money,
+                  hint: '90000',
+                  controller: _prices[t]!,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => _emit(),
+                  validator: _validatePrice,
+                ),
+              ),
+            ]),
+          ),
+        ),
+      if (missing.isNotEmpty)
         Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final t in courtTypes)
-            FilterChip(
+          for (final t in missing)
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 18),
               label: Text(courtTypeLabel(t)),
-              selected: value.contains(t),
-              onSelected: (on) {
-                final next = on ? ([...value, t]..sort()) : value.where((x) => x != t).toList();
-                if (next.isNotEmpty) onChanged(next);
-              },
+              onPressed: () => setState(() {
+                _prices[t] = TextEditingController();
+                _emit();
+              }),
             ),
         ]),
-      ]);
+    ]);
+  }
 }
 
 void showSnack(BuildContext context, String message) {

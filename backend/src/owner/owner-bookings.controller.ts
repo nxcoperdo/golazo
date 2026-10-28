@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 import { AuthGuard, CurrentUser, Roles, type AuthUser } from '../auth/auth.guard.js';
 import { MAX_HOURS } from '../bookings/booking-policy.js';
+import { COURT_TYPES } from '../courts/courts.dto.js';
 import { OwnerBookingsService } from './owner-bookings.service.js';
 
 class BookingsQuery {
@@ -18,6 +19,8 @@ class BlockDto {
   @IsISO8601({ strict: true }) startAt!: string;
   @IsInt() @Min(1) @Max(MAX_HOURS) hours!: number;
   @IsOptional() @IsString() @MaxLength(200) note?: string;
+  /** Si falta, se bloquean todos los tipos de la cancha. */
+  @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
 }
 
 @Controller('owner')

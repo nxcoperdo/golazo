@@ -18,6 +18,7 @@ const BOOKING_SELECT = `
   b.id, b.court_id AS "courtId", c.name AS "courtName", b.start_at AS "startAt", b.hours,
   b.end_at AS "endAt", b.total, b.deposit, b.last_minute AS "lastMinute", b.status,
   b.created_at AS "createdAt",
+  (SELECT v.court_type FROM court_variants v WHERE v.id = b.variant_id) AS "courtType",
   EXISTS (SELECT 1 FROM reviews r WHERE r.booking_id = b.id) AS reviewed`;
 
 export interface BookingRow {
@@ -32,7 +33,6 @@ interface CourtRow {
   id: string;
   owner_id: string;
   name: string;
-  price_per_hour: number;
   open_hour: number;
   close_hour: number;
   requires_deposit: boolean;
@@ -53,7 +53,7 @@ export class BookingsService {
     this.unpaidMinutes = Number(config.get('UNPAID_MINUTES') ?? 30);
   }
 
-  async create(playerId: string, input: { courtId: string; startAt: string; hours: number }) {
+  async create(playerId: string, input: { courtId: string; startAt: string; hours: number; courtType?: number }) {
     const start = new Date(input.startAt);
     const now = new Date();
 
@@ -71,12 +71,25 @@ export class BookingsService {
 
     const court = (
       await this.db.query<CourtRow>(
-        `SELECT id, owner_id, name, price_per_hour, open_hour, close_hour, requires_deposit, deposit_percent
+        `SELECT id, owner_id, name, open_hour, close_hour, requires_deposit, deposit_percent
          FROM courts WHERE id = $1 AND status = 'active'`,
         [input.courtId],
       )
     ).rows[0];
     if (!court) throw new NotFoundException({ code: 'COURT_NOT_FOUND', message: 'Cancha no encontrada' });
+
+    // El tipo elegido fija el precio y el calendario; sin tipo, el más barato.
+    const variant = (
+      await this.db.query<{ id: string; price_per_hour: number }>(
+        `SELECT id, price_per_hour FROM court_variants
+         WHERE court_id = $1 AND active AND ($2::smallint IS NULL OR court_type = $2)
+         ORDER BY price_per_hour, court_type LIMIT 1`,
+        [court.id, input.courtType ?? null],
+      )
+    ).rows[0];
+    if (!variant) {
+      throw new UnprocessableEntityException({ code: 'BAD_COURT_TYPE', message: 'Esa cancha no ofrece ese tipo de juego' });
+    }
 
     const invalid = validateSlot({
       start,
@@ -100,7 +113,7 @@ export class BookingsService {
     }
 
     // Todo se calcula aquí: el servidor no confía en montos enviados por la app.
-    const total = court.price_per_hour * input.hours;
+    const total = variant.price_per_hour * input.hours;
     const deposit = depositFor({
       total,
       courtRequiresDeposit: court.requires_deposit,
@@ -112,13 +125,21 @@ export class BookingsService {
 
     try {
       const { rows } = await this.db.query<{ id: string }>(
-        `INSERT INTO bookings (court_id, player_id, start_at, hours, end_at, total, deposit, last_minute, status, reminded_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+        `INSERT INTO bookings (court_id, variant_id, player_id, start_at, hours, end_at, total, deposit, last_minute, status, reminded_at)
+         VALUES ($1,$11,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
         [court.id, playerId, start, input.hours, end, total, deposit, isLastMinute(start, now),
          deposit === 0 ? 'confirmed' : 'pending_payment',
          // Si empieza en menos de 2 h no tiene sentido recordarla de inmediato.
-         start.getTime() - now.getTime() <= 2 * 3600_000 ? now : null],
+         start.getTime() - now.getTime() <= 2 * 3600_000 ? now : null, variant.id],
       );
+      // Chat con el dueño: el hilo (cancha, jugador) se crea con la reserva; si ya existía, se reabre solo.
+      void this.db
+        .query(
+          `INSERT INTO chat_threads (kind, court_id, participant_id) VALUES ('court', $1, $2)
+           ON CONFLICT (court_id, participant_id) WHERE kind = 'court' DO NOTHING`,
+          [court.id, playerId],
+        )
+        .catch(() => undefined);
       if (deposit === 0) {
         // Sin anticipo la reserva queda confirmada al instante: el dueño debe enterarse.
         void this.notifications

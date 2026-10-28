@@ -13,6 +13,7 @@ import '../../core/widgets/legal_consent.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
+import '../chat/chats_screen.dart';
 
 /// Gestión de una cancha: fotos, datos, estado, cuentas de cobro y mensualidad.
 class CourtManageScreen extends ConsumerStatefulWidget {
@@ -144,7 +145,7 @@ class _State extends ConsumerState<CourtManageScreen> {
               Text('Datos de la cancha', style: authText(16, weight: 800)),
               const SizedBox(height: 8),
               Text(
-                '${courtTypesLabel(c.types)} · ${c.covered ? 'Techada' : 'Al aire libre'} · ${cop(c.pricePerHour)}/h · '
+                '${courtTypesLabel(c.types)} · ${c.covered ? 'Techada' : 'Al aire libre'} · ${_prices(c)} · '
                 '${hourLabel(c.openHour)} – ${hourLabel(c.closeHour)}'
                 '${c.requiresDeposit ? ' · Anticipo ${c.depositPercent} %' : ''}',
                 style: authText(12, weight: 500, color: const Color(0xFF6C7B72), height: 1.5),
@@ -272,6 +273,13 @@ class _State extends ConsumerState<CourtManageScreen> {
         ]),
       );
 
+  /// Mensaje que se abre ya escrito en WhatsApp: qué cancha es y con qué correo está registrada.
+  String _supportMessage(Court c, bool pending) {
+    final email = ref.read(sessionProvider).value?.email;
+    final action = pending ? 'activar mi cancha' : 'renovar la mensualidad de mi cancha';
+    return 'Hola, quiero $action «${c.name}» en Golazo.${email == null ? '' : ' Mi correo: $email'}';
+  }
+
   /// Solo el estado de la mensualidad: el cobro se coordina con soporte, fuera de la app.
   Widget _subscriptionCard(Court c) {
     final sub = c.subscription;
@@ -296,8 +304,14 @@ class _State extends ConsumerState<CourtManageScreen> {
             style: authText(12, weight: 500, color: const Color(0xFF76683C), height: 1.5)),
         const SizedBox(height: 16),
         SolidAction(
-          label: 'Contactar soporte',
-          onPressed: () => ref.read(openUrlProvider)(LegalPage.support.uri),
+          label: 'Chatear con soporte',
+          icon: Icons.forum_outlined,
+          onPressed: () => openSupportChat(context, ref),
+        ),
+        const SizedBox(height: 8),
+        OutlineAction(
+          label: 'Escribir por WhatsApp',
+          onPressed: () => ref.read(openUrlProvider)(AppConfig.whatsappUri(_supportMessage(c, pending))),
         ),
       ]),
     );
@@ -352,17 +366,16 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
   late final _name = TextEditingController(text: widget.court.name);
   late final _description = TextEditingController(text: widget.court.description ?? '');
   late final _address = TextEditingController(text: widget.court.address);
-  late final _price = TextEditingController(text: widget.court.pricePerHour.toString());
   late int _open = widget.court.openHour;
   late int _close = widget.court.closeHour;
   late bool _covered = widget.court.covered;
-  late List<int> _courtTypes = List.of(widget.court.types);
+  late List<CourtVariant> _variants = List.of(widget.court.options);
   late bool _deposit = widget.court.requiresDeposit;
   late int _percent = widget.court.depositPercent;
 
   @override
   void dispose() {
-    for (final c in [_name, _description, _address, _price]) {
+    for (final c in [_name, _description, _address]) {
       c.dispose();
     }
     super.dispose();
@@ -378,11 +391,10 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
       'name': _name.text.trim(),
       'description': _description.text.trim(),
       'address': _address.text.trim(),
-      'pricePerHour': int.parse(_price.text.replaceAll(RegExp(r'\D'), '')),
       'openHour': _open,
       'closeHour': _close,
       'covered': _covered,
-      'courtTypes': _courtTypes,
+      'variants': [for (final v in _variants) v.toJson()],
       'requiresDeposit': _deposit,
       if (_deposit) 'depositPercent': _percent,
     });
@@ -427,24 +439,13 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
           const SizedBox(height: 16),
           AuthField(label: 'Descripción', icon: Icons.notes, controller: _description, maxLines: 3, maxLength: 1000),
           const SizedBox(height: 8),
-          AuthField(
-            label: 'Precio por hora (COP)',
-            icon: Icons.attach_money,
-            controller: _price,
-            keyboardType: TextInputType.number,
-            validator: (v) {
-              final n = int.tryParse((v ?? '').replaceAll(RegExp(r'\D'), ''));
-              return (n == null || n < 1000 || n > 1000000) ? 'Entre \$1.000 y \$1.000.000' : null;
-            },
-          ),
-          const SizedBox(height: 16),
           Row(children: [
             Expanded(child: PickTile(label: 'Abre', value: hourLabel(_open), onTap: () => _pickHour(true))),
             const SizedBox(width: 12),
             Expanded(child: PickTile(label: 'Cierra', value: hourLabel(_close), onTap: () => _pickHour(false))),
           ]),
           const SizedBox(height: 16),
-          CourtTypePicker(value: _courtTypes, onChanged: (t) => setState(() => _courtTypes = t)),
+          CourtVariantsEditor(initial: _variants, onChanged: (v) => _variants = v),
           const SizedBox(height: 16),
           ToggleRow(title: 'Cancha techada', value: _covered, onChanged: (v) => setState(() => _covered = v)),
           const SizedBox(height: 12),
@@ -472,3 +473,5 @@ class _EditCourtBodyState extends State<_EditCourtBody> {
         ]),
       );
 }
+
+String _prices(Court c) => variantsPriceLabel(c.priceItems);

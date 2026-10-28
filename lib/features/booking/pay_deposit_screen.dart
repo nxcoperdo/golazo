@@ -221,7 +221,8 @@ class _SummaryCard extends StatelessWidget {
         const SizedBox(height: 16),
         Text(b.courtName, style: authText(14, weight: 700, color: Colors.white)),
         const SizedBox(height: 4),
-        Text(rangeLabel(b.startAt, b.hours), style: authText(12, weight: 500, color: Colors.white.withValues(alpha: 0.65))),
+        Text([?b.typeLabel, rangeLabel(b.startAt, b.hours)].join(' · '),
+            style: authText(12, weight: 500, color: Colors.white.withValues(alpha: 0.65))),
       ]),
     );
   }

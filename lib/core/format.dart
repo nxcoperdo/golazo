@@ -10,6 +10,11 @@ String fmtInt(int v) {
 }
 
 /// Pesos colombianos: $90.000 (el formato es_CO de intl pone el símbolo al final: 90.000$).
+/// "Fútbol 5 $40.000/h · Fútbol 11 $120.000/h" (o solo "$40.000/h" si hay un tipo).
+String variantsPriceLabel(List<({int type, int price})> items) => items.length == 1
+    ? '${cop(items.first.price)}/h'
+    : items.map((v) => 'F${v.type} ${cop(v.price)}/h').join(' · ');
+
 String cop(int v) => v < 0 ? '-\$${fmtInt(-v)}' : '\$${fmtInt(v)}';
 
 /// Hora en formato 12 h con AM/PM: 0 y 24 → "12:00 AM", 12 → "12:00 PM".

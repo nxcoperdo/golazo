@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golazo/core/api/api_client.dart';
 import 'package:golazo/core/format.dart';
 import 'package:golazo/core/location.dart';
 import 'package:golazo/data/golazo_api.dart';
@@ -13,7 +14,12 @@ import 'package:golazo/features/booking/court_detail_screen.dart';
 import 'package:golazo/features/player/courts_screen.dart';
 
 Court mkCourt(String id, String name, String city,
-        {bool covered = false, List<int> types = const [5], int price = 80000, bool deposit = false, int reviews = 0}) =>
+        {bool covered = false,
+        List<int> types = const [5],
+        List<CourtVariant> variants = const [],
+        int price = 80000,
+        bool deposit = false,
+        int reviews = 0}) =>
     Court(
       id: id,
       name: name,
@@ -21,6 +27,7 @@ Court mkCourt(String id, String name, String city,
       address: 'Cra 7 # 10-20',
       covered: covered,
       types: types,
+      variants: variants,
       pricePerHour: price,
       openHour: 8,
       closeHour: 23,
@@ -35,13 +42,21 @@ Court mkCourt(String id, String name, String city,
     );
 
 class FakeApi extends Fake implements GolazoApi {
-  FakeApi({this.user});
+  FakeApi({this.user, this.withDoubleType = false});
   final AppUser? user;
 
-  final all = [
+  /// Agrega la cancha 4, con Fútbol 5 y Fútbol 11 a distinto precio.
+  final bool withDoubleType;
+
+  late final all = [
     mkCourt('1', 'La Bombonera', 'Bogotá', covered: true, types: [5, 7], price: 90000, deposit: true, reviews: 2),
     mkCourt('2', 'Golazo Arena', 'Bogotá', price: 70000),
     mkCourt('3', 'El Potrero', 'Medellín', covered: true, price: 100000),
+    if (withDoubleType)
+      mkCourt('4', 'Doble Tipo', 'Cali',
+          types: [5, 11],
+          price: 60000,
+          variants: [CourtVariant(type: 5, pricePerHour: 60000), CourtVariant(type: 11, pricePerHour: 150000)]),
   ];
   final lastFilters = <String, Object?>{};
   String? updatedPhone;
@@ -83,8 +98,13 @@ class FakeApi extends Fake implements GolazoApi {
   Future<Court> court(String id) async => all.firstWhere((c) => c.id == id);
 
   @override
-  Future<List<HourSlot>> availability(String courtId, DateTime coDay) async =>
-      [for (var h = 8; h < 14; h++) HourSlot(h, h != 10)]; // 10:00 AM ocupada
+  Future<List<HourSlot>> availability(String courtId, DateTime coDay, {int? courtType}) async {
+    availabilityTypes.add(courtType);
+    // 10:00 AM ocupada (en el Fútbol 11 de la cancha 4 está ocupada la 11:00 AM)
+    return [for (var h = 8; h < 14; h++) HourSlot(h, courtType == 11 ? h != 11 : h != 10)];
+  }
+
+  final availabilityTypes = <int?>[];
 
   @override
   Future<List<Review>> reviews(String courtId) async => courtId != '1'
@@ -101,6 +121,10 @@ class FakeApi extends Fake implements GolazoApi {
 
   // ---- Reservas y pago del anticipo ----
   int created = 0;
+  final bookedTypes = <int?>[];
+
+  /// Hace que reservar falle (así la prueba no necesita un router para navegar).
+  bool slotTaken = false;
   int bookingFetches = 0;
   final uploads = <String>[];
   Booking current = Booking(
@@ -119,8 +143,10 @@ class FakeApi extends Fake implements GolazoApi {
   );
 
   @override
-  Future<Booking> createBooking(String courtId, DateTime startAt, int hours) async {
+  Future<Booking> createBooking(String courtId, DateTime startAt, int hours, {int? courtType}) async {
     created++;
+    bookedTypes.add(courtType);
+    if (slotTaken) throw const ApiException('Esa hora ya fue reservada', code: 'SLOT_TAKEN');
     return current;
   }
 
@@ -378,6 +404,49 @@ void main() {
       await t.tap(find.text('10:00 AM'), warnIfMissed: false);
       await t.pump();
       expect(find.textContaining('2 h'), findsOneWidget);
+    });
+
+    testWidgets('con varios tipos: elige el tipo, ve su precio y reserva con ese tipo', (t) async {
+      final api = FakeApi(user: withPhone, withDoubleType: true)..slotTaken = true;
+      await pumpScreen(t, const CourtDetailScreen(courtId: '4'), api);
+      expect(find.text('Elige el tipo de cancha'), findsOneWidget);
+      expect(find.text('Fútbol 5'), findsOneWidget);
+      expect(find.text('5 vs 5'), findsOneWidget);
+      expect(find.text('11 vs 11'), findsOneWidget);
+      expect(find.text(r'$150.000/h'), findsOneWidget);
+
+      // Sin elegir nada: el más barato (Fútbol 5, $60.000).
+      expect(api.availabilityTypes.last, 5);
+      await t.tap(find.text('8:00 AM'));
+      await t.pump();
+      expect(find.textContaining(r'$60.000', findRichText: true), findsWidgets);
+
+      // Al cambiar a Fútbol 11 se vacía la selección, se recarga la disponibilidad y cambia el precio.
+      await t.tap(find.text('Fútbol 11'));
+      await t.pumpAndSettle();
+      expect(api.availabilityTypes.last, 11);
+      expect(find.text('Selecciona una hora'), findsOneWidget);
+      await t.tap(find.text('8:00 AM'));
+      await t.pump();
+      await t.tap(find.text('9:00 AM'));
+      await t.pump();
+      expect(find.textContaining(r'$300.000', findRichText: true), findsOneWidget); // 2 x 150.000
+
+      final reservar = find.widgetWithText(FilledButton, 'Reservar');
+      await t.ensureVisible(reservar);
+      await t.tap(reservar);
+      await t.pumpAndSettle();
+      if (find.text('Pagar anticipo').evaluate().isNotEmpty) {
+        await t.tap(find.text('Pagar anticipo'));
+        await t.pumpAndSettle();
+      }
+      expect(api.bookedTypes, [11]);
+    });
+
+    testWidgets('una cancha de un solo tipo no muestra el selector', (t) async {
+      await pumpScreen(t, const CourtDetailScreen(courtId: '2'), FakeApi(user: withPhone));
+      expect(find.text('Elige el tipo de cancha'), findsNothing);
+      expect(find.text('Elige el día'), findsOneWidget);
     });
 
     testWidgets('sin celular guardado pide el celular antes de reservar', (t) async {

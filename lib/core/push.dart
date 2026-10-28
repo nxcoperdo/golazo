@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/providers.dart';
+import '../features/chat/chat_screen.dart';
 import 'router.dart';
 
 /// Permite mostrar un SnackBar desde fuera del árbol de pantallas (aviso con la app abierta).
@@ -63,9 +64,9 @@ class PushService {
       if (!_listening) {
         _listening = true;
         _foregroundSub = FirebaseMessaging.onMessage.listen(_onForeground);
-        _openedSub = FirebaseMessaging.onMessageOpenedApp.listen((_) => _openInbox());
+        _openedSub = FirebaseMessaging.onMessageOpenedApp.listen(_openFrom);
         final initial = await messaging.getInitialMessage();
-        if (initial != null) _openInbox();
+        if (initial != null) _openFrom(initial);
       }
     } catch (e) {
       debugPrint('No se pudo activar el push: $e');
@@ -95,15 +96,33 @@ class PushService {
   }
 
   void _onForeground(RemoteMessage m) {
-    _ref.invalidate(notificationsProvider);
+    final chatId = _chatThread(m);
+    if (chatId != null) {
+      _ref.invalidate(chatThreadsProvider);
+      // Si ya estás en ese chat, los mensajes llegan solos: no hace falta avisar.
+      if (activeChatThreadId == chatId) return;
+    } else {
+      _ref.invalidate(notificationsProvider);
+    }
     final title = m.notification?.title;
     if (title == null) return;
     rootMessengerKey.currentState
       ?..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(title),
-        action: SnackBarAction(label: 'Ver', onPressed: _openInbox),
+        action: SnackBarAction(label: 'Ver', onPressed: () => _openFrom(m)),
       ));
+  }
+
+  /// Id del chat si el aviso es un mensaje nuevo (data.type == chat_message).
+  String? _chatThread(RemoteMessage m) => m.data['type'] == 'chat_message' ? m.data['threadId'] as String? : null;
+
+  /// Toque en un aviso: los mensajes de chat abren la conversación; el resto, la bandeja.
+  void _openFrom(RemoteMessage m) {
+    final chatId = _chatThread(m);
+    if (chatId == null) return _openInbox();
+    _ref.invalidate(chatThreadsProvider);
+    _ref.read(routerProvider).push('/chat/$chatId');
   }
 
   void _openInbox() {

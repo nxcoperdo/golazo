@@ -254,15 +254,17 @@ void main() {
       expect(find.text('Borrar mi cuenta'), findsOneWidget);
     });
 
-    testWidgets('enlaces legales: términos, privacidad y soporte abren las páginas del servidor', (t) async {
+    testWidgets('enlaces legales: términos y privacidad abren el servidor; soporte abre WhatsApp', (t) async {
       final opened = <Uri>[];
       await pumpScreen(t, const ProfileScreen(embedded: true), PlayerApi(user: me), opened: opened);
-      for (final label in ['Términos y Condiciones', 'Política de privacidad', 'Soporte']) {
+      for (final label in ['Términos y Condiciones', 'Política de privacidad', 'Soporte por WhatsApp']) {
         await t.ensureVisible(find.text(label));
         await t.tap(find.text(label));
         await t.pump();
       }
-      expect(opened.map((u) => u.path), ['/legal/terminos', '/legal/privacidad', '/legal/soporte']);
+      expect(opened.map((u) => u.path), ['/legal/terminos', '/legal/privacidad', '/573219429385']);
+      expect(opened.last.host, 'wa.me');
+      expect(opened.last.queryParameters['text'], startsWith('Hola, necesito ayuda con Golazo.'));
     });
 
     testWidgets('correo sin confirmar ofrece Reenviar', (t) async {

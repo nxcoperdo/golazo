@@ -87,8 +87,32 @@ const courtTypes = [5, 6, 7, 8, 11];
 
 String courtTypeLabel(int n) => 'Fútbol $n';
 
+/// "5 vs 5": jugadores por equipo del tipo [n].
+String courtTypePlayers(int n) => '$n vs $n';
+
 /// "Fútbol 5" o, si ofrece varios, "Fútbol 5 · 7".
 String courtTypesLabel(List<int> types) => 'Fútbol ${(List.of(types)..sort()).join(' · ')}';
+
+/// Un tipo de cancha (Fútbol 5, 7…) con su propio precio y calendario.
+class CourtVariant {
+  const CourtVariant({required this.type, required this.pricePerHour, this.id});
+
+  /// Vacío cuando viene de un servidor antiguo o de un formulario sin guardar.
+  final String? id;
+  final int type;
+  final int pricePerHour;
+
+  String get label => courtTypeLabel(type);
+  String get players => courtTypePlayers(type);
+
+  factory CourtVariant.fromJson(Map<String, dynamic> j) => CourtVariant(
+        id: j['id'] as String?,
+        type: _int(j['courtType']),
+        pricePerHour: _int(j['pricePerHour']),
+      );
+
+  Map<String, dynamic> toJson() => {'courtType': type, 'pricePerHour': pricePerHour};
+}
 
 class Court {
   const Court({
@@ -98,6 +122,7 @@ class Court {
     required this.address,
     required this.covered,
     this.types = const [5],
+    this.variants = const [],
     required this.pricePerHour,
     required this.openHour,
     required this.closeHour,
@@ -124,6 +149,11 @@ class Court {
   final bool covered;
   /// Tipos de juego que ofrece (Fútbol 5, 7…). Siempre trae al menos uno.
   final List<int> types;
+
+  /// Tipos con su precio. Siempre trae al menos uno (si el servidor es antiguo se arma con `pricePerHour`).
+  final List<CourtVariant> variants;
+
+  /// Precio "desde": el del tipo más barato.
   final int pricePerHour;
   final int openHour;
   final int closeHour;
@@ -149,6 +179,30 @@ class Court {
     return list..sort();
   }
 
+  /// Precios para mostrar: "$40.000/h" o, con varios tipos, "F5 $40.000/h · F11 $120.000/h".
+  List<({int type, int price})> get priceItems => [for (final v in options) (type: v.type, price: v.pricePerHour)];
+
+  /// Tipos que se pueden reservar, del más barato al más caro. Nunca está vacío.
+  List<CourtVariant> get options {
+    final list = variants.isNotEmpty
+        ? List.of(variants)
+        : [for (final t in types) CourtVariant(type: t, pricePerHour: pricePerHour)];
+    return list..sort((a, b) {
+      final byPrice = a.pricePerHour.compareTo(b.pricePerHour);
+      return byPrice != 0 ? byPrice : a.type.compareTo(b.type);
+    });
+  }
+
+  /// Lee `variants`; con servidores antiguos se reparte `pricePerHour` entre los tipos.
+  static List<CourtVariant> _variants(Map<String, dynamic> j, List<int> types) {
+    final raw = j['variants'];
+    if (raw is List && raw.isNotEmpty) {
+      return [for (final v in raw) CourtVariant.fromJson(v as Map<String, dynamic>)]
+        ..sort((a, b) => a.type.compareTo(b.type));
+    }
+    return [for (final t in types) CourtVariant(type: t, pricePerHour: _int(j['pricePerHour']))];
+  }
+
   factory Court.fromJson(Map<String, dynamic> j) {
     final photosRaw = (j['photos'] as List?) ?? const [];
     final sub = j['subscription'] as Map<String, dynamic>?;
@@ -160,6 +214,7 @@ class Court {
       address: j['address'] as String,
       covered: j['covered'] as bool,
       types: _types(j),
+      variants: _variants(j, _types(j)),
       pricePerHour: _int(j['pricePerHour']),
       openHour: _int(j['openHour']),
       closeHour: _int(j['closeHour']),
@@ -213,6 +268,7 @@ class Booking {
     required this.lastMinute,
     required this.status,
     required this.cancellable,
+    this.courtType,
     this.reviewed = false,
     this.payBy,
     this.paymentMethods = const [],
@@ -229,6 +285,9 @@ class Booking {
   final BookingStatus status;
   final bool cancellable;
 
+  /// Tipo de cancha reservado (Fútbol 5, 7…).
+  final int? courtType;
+
   /// El jugador ya calificó esta reserva.
   final bool reviewed;
 
@@ -238,6 +297,9 @@ class Booking {
 
   /// Solo se llena mientras falta pagar.
   final List<PaymentMethod> paymentMethods;
+
+  /// "Fútbol 7 · 7 vs 7", o null si el servidor no lo informa.
+  String? get typeLabel => courtType == null ? null : '${courtTypeLabel(courtType!)} · ${courtTypePlayers(courtType!)}';
 
   DateTime get endAt => startAt.add(Duration(hours: hours));
   bool get isPast => endAt.isBefore(DateTime.now());
@@ -258,6 +320,7 @@ class Booking {
         lastMinute: j['lastMinute'] as bool? ?? false,
         status: bookingStatusFrom(j['status'] as String),
         cancellable: j['cancellable'] as bool? ?? false,
+        courtType: j['courtType'] == null ? null : _int(j['courtType']),
         reviewed: j['reviewed'] as bool? ?? false,
         payBy: _dtOrNull(j['payBy']),
         paymentMethods: _list(j['paymentMethods'], PaymentMethod.fromJson),
@@ -440,6 +503,7 @@ class OwnerBooking {
     required this.deposit,
     required this.status,
     required this.isBlock,
+    this.courtType,
     this.note,
     this.playerName,
     this.playerPhone,
@@ -456,6 +520,9 @@ class OwnerBooking {
 
   /// true = horas que el propio dueño bloqueó (no es un jugador).
   final bool isBlock;
+
+  /// Tipo reservado (Fútbol 5, 7…).
+  final int? courtType;
   final String? note;
   final String? playerName;
   final String? playerPhone;
@@ -470,6 +537,7 @@ class OwnerBooking {
         deposit: _int(j['deposit']),
         status: bookingStatusFrom(j['status'] as String),
         isBlock: j['isBlock'] as bool? ?? false,
+        courtType: j['courtType'] == null ? null : _int(j['courtType']),
         note: j['note'] as String?,
         playerName: j['playerName'] as String?,
         playerPhone: j['playerPhone'] as String?,
@@ -691,4 +759,241 @@ class Metrics {
   int get bookings30d => _g('last30Days', 'confirmedBookings');
   int get bookingsValue30d => _g('last30Days', 'bookingsValue');
   int get newUsers30d => _g('last30Days', 'newUsers');
+}
+
+// ---------------- Chat ----------------
+
+/// Conversación: 'court' (jugador <-> dueño de la cancha) o 'support' (usuario <-> soporte).
+class ChatThread {
+  const ChatThread({
+    required this.id,
+    required this.kind,
+    required this.participantId,
+    required this.participantName,
+    required this.open,
+    this.courtId,
+    this.courtName,
+    this.participantRole,
+    this.ownerId,
+    this.ownerName,
+    this.lastMessageAt,
+    this.lastBody,
+    this.lastHasImage = false,
+    this.lastSenderId,
+    this.unread = 0,
+    this.blocked = false,
+  });
+
+  final String id;
+  final String kind;
+  final String? courtId;
+  final String? courtName;
+  final String participantId;
+  final String participantName;
+  final String? participantRole;
+  final String? ownerId;
+  final String? ownerName;
+  final DateTime? lastMessageAt;
+  final String? lastBody;
+  final bool lastHasImage;
+  final String? lastSenderId;
+  final int unread;
+
+  /// Se puede escribir (hay reserva vigente y nadie bloqueó a nadie; soporte siempre).
+  final bool open;
+
+  /// Yo bloqueé a la otra persona.
+  final bool blocked;
+
+  bool get isSupport => kind == 'support';
+
+  /// Texto de la lista: lo último que se dijo.
+  String get preview => lastBody ?? (lastHasImage ? '📷 Foto' : 'Sin mensajes todavía');
+
+  factory ChatThread.fromJson(Map<String, dynamic> j) => ChatThread(
+        id: j['id'] as String,
+        kind: j['kind'] as String,
+        courtId: j['courtId'] as String?,
+        courtName: j['courtName'] as String?,
+        participantId: j['participantId'] as String,
+        participantName: j['participantName'] as String,
+        participantRole: j['participantRole'] as String?,
+        ownerId: j['ownerId'] as String?,
+        ownerName: j['ownerName'] as String?,
+        lastMessageAt: _dtOrNull(j['lastMessageAt']),
+        lastBody: j['lastBody'] as String?,
+        lastHasImage: j['lastHasImage'] as bool? ?? false,
+        lastSenderId: j['lastSenderId'] as String?,
+        unread: j['unread'] == null ? 0 : _int(j['unread']),
+        open: j['open'] as bool? ?? false,
+        blocked: j['blocked'] as bool? ?? false,
+      );
+}
+
+class ChatMessage {
+  const ChatMessage({
+    required this.id,
+    required this.seq,
+    required this.senderId,
+    required this.senderName,
+    required this.createdAt,
+    this.fromSupport = false,
+    this.body,
+    this.hasImage = false,
+    this.hidden = false,
+  });
+
+  final String id;
+
+  /// Orden y cursor: la app pide `after=<último seq>` para recibir solo lo nuevo.
+  final int seq;
+  final String senderId;
+  final String senderName;
+  final bool fromSupport;
+  final String? body;
+  final bool hasImage;
+
+  /// Un administrador lo ocultó o la cuenta de quien lo escribió se eliminó.
+  final bool hidden;
+  final DateTime createdAt;
+
+  factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
+        id: j['id'] as String,
+        seq: _int(j['seq']),
+        senderId: j['senderId'] as String,
+        senderName: j['senderName'] as String? ?? '',
+        fromSupport: j['fromSupport'] as bool? ?? false,
+        body: j['body'] as String?,
+        hasImage: j['hasImage'] as bool? ?? false,
+        hidden: j['hidden'] as bool? ?? false,
+        createdAt: _dt(j['createdAt']),
+      );
+}
+
+/// Respuesta de «mensajes»: los mensajes y si el chat sigue abierto.
+class ChatPage {
+  const ChatPage({required this.open, required this.blocked, required this.messages});
+  final bool open;
+  final bool blocked;
+  final List<ChatMessage> messages;
+
+  factory ChatPage.fromJson(Map<String, dynamic> j) => ChatPage(
+        open: j['open'] as bool? ?? false,
+        blocked: j['blocked'] as bool? ?? false,
+        messages: _list(j['messages'], ChatMessage.fromJson),
+      );
+}
+
+/// Bandeja de soporte del administrador.
+class SupportInboxItem {
+  const SupportInboxItem({
+    required this.id,
+    required this.participantName,
+    required this.participantRole,
+    required this.needsReply,
+    this.participantEmail,
+    this.lastMessageAt,
+    this.lastBody,
+    this.lastHasImage = false,
+  });
+
+  final String id;
+  final String participantName;
+  final String? participantEmail;
+  final String participantRole;
+  final DateTime? lastMessageAt;
+  final String? lastBody;
+  final bool lastHasImage;
+  final bool needsReply;
+
+  String get preview => lastBody ?? (lastHasImage ? '📷 Foto' : '');
+
+  factory SupportInboxItem.fromJson(Map<String, dynamic> j) => SupportInboxItem(
+        id: j['id'] as String,
+        participantName: j['participantName'] as String,
+        participantEmail: j['participantEmail'] as String?,
+        participantRole: j['participantRole'] as String? ?? 'player',
+        lastMessageAt: _dtOrNull(j['lastMessageAt']),
+        lastBody: j['lastBody'] as String?,
+        lastHasImage: j['lastHasImage'] as bool? ?? false,
+        needsReply: j['needsReply'] as bool? ?? false,
+      );
+}
+
+/// Chat entre jugador y dueño visto por el administrador (solo lectura).
+class AdminChatThread {
+  const AdminChatThread({
+    required this.id,
+    required this.courtName,
+    required this.playerName,
+    required this.ownerName,
+    required this.messages,
+    this.lastMessageAt,
+    this.lastBody,
+    this.lastHasImage = false,
+  });
+
+  final String id;
+  final String courtName;
+  final String playerName;
+  final String ownerName;
+  final int messages;
+  final DateTime? lastMessageAt;
+  final String? lastBody;
+  final bool lastHasImage;
+
+  String get preview => lastBody ?? (lastHasImage ? '📷 Foto' : '');
+
+  factory AdminChatThread.fromJson(Map<String, dynamic> j) => AdminChatThread(
+        id: j['id'] as String,
+        courtName: j['courtName'] as String,
+        playerName: j['playerName'] as String,
+        ownerName: j['ownerName'] as String,
+        messages: j['messages'] == null ? 0 : _int(j['messages']),
+        lastMessageAt: _dtOrNull(j['lastMessageAt']),
+        lastBody: j['lastBody'] as String?,
+        lastHasImage: j['lastHasImage'] as bool? ?? false,
+      );
+}
+
+class ChatReport {
+  const ChatReport({
+    required this.id,
+    required this.messageId,
+    required this.threadId,
+    required this.senderName,
+    required this.reporterName,
+    required this.createdAt,
+    this.reason,
+    this.body,
+    this.hasImage = false,
+    this.hidden = false,
+    this.courtName,
+  });
+
+  final String id;
+  final String messageId;
+  final String threadId;
+  final String senderName;
+  final String reporterName;
+  final String? reason;
+  final String? body;
+  final bool hasImage;
+  final bool hidden;
+  final String? courtName;
+  final DateTime createdAt;
+
+  factory ChatReport.fromJson(Map<String, dynamic> j) => ChatReport(
+        id: j['id'] as String,
+        messageId: j['messageId'] as String,
+        threadId: j['threadId'] as String,
+        senderName: j['senderName'] as String,
+        reporterName: j['reporterName'] as String,
+        reason: j['reason'] as String?,
+        body: j['body'] as String?,
+        hasImage: j['hasImage'] as bool? ?? false,
+        hidden: j['hidden'] as bool? ?? false,
+        courtName: j['courtName'] as String?,
+        createdAt: _dt(j['createdAt']),
+      );
 }

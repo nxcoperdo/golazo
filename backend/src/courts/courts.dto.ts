@@ -39,6 +39,14 @@ export class ListCourtsQuery {
 export class AvailabilityQuery {
   /** YYYY-MM-DD en hora de Colombia. */
   @IsString() @Length(10, 10) date!: string;
+  /** Tipo de cancha; si no llega se usa el más barato. */
+  @IsOptional() @Type(() => Number) @IsIn(COURT_TYPES) courtType?: number;
+}
+
+/** Un tipo de cancha con su propio precio y calendario. */
+export class CourtVariantDto {
+  @IsIn(COURT_TYPES) courtType!: number;
+  @IsInt() @Min(1000) @Max(1_000_000) pricePerHour!: number;
 }
 
 export class CreateCourtDto {
@@ -53,7 +61,11 @@ export class CreateCourtDto {
   @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @ArrayUnique() @IsIn(COURT_TYPES, { each: true }) courtTypes?: number[];
   /** Forma antigua (un solo tipo): se sigue aceptando. */
   @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
-  @IsInt() @Min(1000) @Max(1_000_000) pricePerHour!: number;
+  /** Tipos con su precio (forma nueva). */
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @ValidateNested({ each: true }) @Type(() => CourtVariantDto)
+  variants?: CourtVariantDto[];
+  /** Precio único de la forma antigua; con `variants` no hace falta. */
+  @IsOptional() @IsInt() @Min(1000) @Max(1_000_000) pricePerHour?: number;
   @IsInt() @Min(0) @Max(23) openHour!: number;
   @IsInt() @Min(1) @Max(24) closeHour!: number;
   @IsBoolean() requiresDeposit!: boolean;
@@ -70,6 +82,8 @@ export class UpdateCourtDto {
   @IsOptional() @IsBoolean() covered?: boolean;
   @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @ArrayUnique() @IsIn(COURT_TYPES, { each: true }) courtTypes?: number[];
   @IsOptional() @IsIn(COURT_TYPES) courtType?: number;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @ValidateNested({ each: true }) @Type(() => CourtVariantDto)
+  variants?: CourtVariantDto[];
   @IsOptional() @IsInt() @Min(1000) @Max(1_000_000) pricePerHour?: number;
   @IsOptional() @IsInt() @Min(0) @Max(23) openHour?: number;
   @IsOptional() @IsInt() @Min(1) @Max(24) closeHour?: number;

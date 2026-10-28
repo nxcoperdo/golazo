@@ -74,10 +74,12 @@ class ApiClient {
     required String field,
     required Uint8List bytes,
     required String filename,
+    Map<String, String>? fields,
   }) {
     return _send('POST', path, formBuilder: () {
       return FormData.fromMap({
         field: MultipartFile.fromBytes(bytes, filename: filename),
+        ...?fields,
       });
     });
   }

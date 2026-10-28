@@ -14,6 +14,7 @@ import '../features/auth/splash_screen.dart';
 import '../features/auth/verify_email_screen.dart';
 import '../features/booking/court_detail_screen.dart';
 import '../features/booking/pay_deposit_screen.dart';
+import '../features/chat/chat_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/owner/court_form_screen.dart';
 import '../features/owner/court_manage_screen.dart';
@@ -85,6 +86,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/consent', builder: (_, _) => const ConsentScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+      // Chat: lo abren jugador, dueño y administrador (no pertenece a ninguna zona de rol).
+      GoRoute(
+          path: '/chat/:id',
+          builder: (_, s) => ChatScreen(threadId: s.pathParameters['id']!, args: s.extra is ChatArgs ? s.extra as ChatArgs : null)),
 
       // Jugador
       GoRoute(

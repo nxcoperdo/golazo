@@ -2,8 +2,10 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import type { PoolClient } from 'pg';
 import { hourLabelCo } from '../common/time.js';
+import { CHAT_RETENTION_MONTHS } from '../chat/chat.rules.js';
 import { Db } from '../db/db.service.js';
 import { type Notice, NotificationsService } from '../notifications/notifications.service.js';
+import { StorageService } from '../storage/storage.service.js';
 
 export interface JobsResult {
   expiredUnpaid: number;
@@ -11,6 +13,8 @@ export interface JobsResult {
   subscriptionReminders: number;
   bookingReminders: number;
   cleaned: number;
+  /** Mensajes de chat borrados por superar el tiempo de conservación. */
+  chatPurged?: number;
 }
 
 const TODAY = `(now() AT TIME ZONE 'America/Bogota')::date`;
@@ -30,6 +34,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly db: Db,
     private readonly notifications: NotificationsService,
+    private readonly storage: StorageService,
     config: ConfigService,
   ) {
     this.unpaidMinutes = Number(config.get('UNPAID_MINUTES') ?? 30);
@@ -51,6 +56,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   /** Ejecuta todas las tareas una vez (también disponible para el admin). */
   async runAll(): Promise<JobsResult> {
     const notices: Notice[] = [];
+    const chatFiles: string[] = [];
     const result = await this.db.tx<JobsResult>(async (c) => {
       const lock = await c.query<{ ok: boolean }>('SELECT pg_try_advisory_xact_lock($1) AS ok', [LOCK_KEY]);
       if (!lock.rows[0]!.ok) {
@@ -62,8 +68,10 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
         subscriptionReminders: await this.remindSubscriptions(c, notices),
         bookingReminders: await this.remindBookings(c, notices),
         cleaned: await this.cleanup(c),
+        chatPurged: await this.purgeChat(c, chatFiles),
       };
     });
+    for (const f of chatFiles) await this.storage.remove('chat', f);
     await this.notifications.deliver(notices);
     return result;
   }
@@ -167,6 +175,16 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Borra tokens de sesión y de recuperación que ya no sirven. */
+  /** Borra los mensajes de chat de más de N meses; devuelve sus fotos para quitarlas del disco tras confirmar. */
+  private async purgeChat(c: PoolClient, files: string[]): Promise<number> {
+    const del = await c.query<{ image_path: string | null }>(
+      `DELETE FROM chat_messages WHERE created_at < now() - make_interval(months => $1) RETURNING image_path`,
+      [CHAT_RETENTION_MONTHS],
+    );
+    for (const r of del.rows) if (r.image_path) files.push(r.image_path);
+    return del.rowCount ?? 0;
+  }
+
   private async cleanup(c: PoolClient): Promise<number> {
     const a = await c.query(
       `DELETE FROM refresh_tokens WHERE expires_at < now() - interval '7 days' OR revoked_at < now() - interval '30 days'`,

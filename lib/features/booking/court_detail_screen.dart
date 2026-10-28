@@ -34,11 +34,16 @@ class _State extends ConsumerState<CourtDetailScreen> {
   late final DateTime _today = coToday();
   late DateTime _day = _today;
   Set<int> _hours = {};
+
+  /// Tipo elegido; mientras no elija, el más barato.
+  int? _courtType;
   bool _busy = false;
   final _phone = TextEditingController();
   final _reviewsKey = GlobalKey();
 
-  AvailabilityKey get _key => (courtId: widget.courtId, day: _day);
+  CourtVariant _variant(Court c) => c.options.firstWhere((v) => v.type == _courtType, orElse: () => c.options.first);
+
+  AvailabilityKey _key(Court c) => (courtId: widget.courtId, day: _day, courtType: _variant(c).type);
 
   @override
   void dispose() {
@@ -84,12 +89,12 @@ class _State extends ConsumerState<CourtDetailScreen> {
   }
 
   Widget _content(Court c) {
-    final slots = ref.watch(availabilityProvider(_key));
+    final slots = ref.watch(availabilityProvider(_key(c)));
     return RefreshIndicator(
       edgeOffset: 80,
       onRefresh: () async {
         ref.invalidate(courtDetailProvider(widget.courtId));
-        ref.invalidate(availabilityProvider(_key));
+        ref.invalidate(availabilityProvider(_key(c)));
         ref.invalidate(courtReviewsProvider(widget.courtId));
       },
       child: ListView(padding: EdgeInsets.zero, children: [
@@ -196,18 +201,30 @@ class _State extends ConsumerState<CourtDetailScreen> {
           border: Border.symmetric(horizontal: BorderSide(color: AuthColors.border)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: _StepTitle('PASO 1', 'Elige el día')),
+          if (c.options.length > 1) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: _StepTitle('PASO 1', 'Elige el tipo de cancha', trailing: 'Cada tipo tiene su precio'),
+            ),
+            const SizedBox(height: 16),
+            _typePicker(c),
+            const SizedBox(height: 32),
+          ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _StepTitle(c.options.length > 1 ? 'PASO 2' : 'PASO 1', 'Elige el día'),
+          ),
           const SizedBox(height: 16),
           _dayPicker(),
           const SizedBox(height: 32),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _StepTitle('PASO 2', 'Elige la hora', trailing: 'Máx. ${BookingPolicy.maxHours} horas'),
+              _StepTitle(c.options.length > 1 ? 'PASO 3' : 'PASO 2', 'Elige la hora', trailing: 'Máx. ${BookingPolicy.maxHours} horas'),
               const SizedBox(height: 16),
               AsyncView<List<HourSlot>>(
                 value: slots,
-                onRetry: () => ref.invalidate(availabilityProvider(_key)),
+                onRetry: () => ref.invalidate(availabilityProvider(_key(c))),
                 builder: (list) => _hourGrid(list),
               ),
               const SizedBox(height: 12),
@@ -217,6 +234,30 @@ class _State extends ConsumerState<CourtDetailScreen> {
           ),
         ]),
       );
+
+  Widget _typePicker(Court c) {
+    final selected = _variant(c).type;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: LayoutBuilder(builder: (context, box) {
+        final w = (box.maxWidth - 8) / 2;
+        return Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final v in c.options)
+            SizedBox(
+              width: w,
+              child: _TypeTile(
+                variant: v,
+                selected: v.type == selected,
+                onTap: () => setState(() {
+                  _courtType = v.type;
+                  _hours = {};
+                }),
+              ),
+            ),
+        ]);
+      }),
+    );
+  }
 
   Widget _dayPicker() => SizedBox(
         height: 92,
@@ -307,7 +348,7 @@ class _State extends ConsumerState<CourtDetailScreen> {
     if (_hours.isEmpty) return null;
     final first = _hours.reduce((a, b) => a < b ? a : b);
     final start = coInstant(_day, first);
-    final total = c.pricePerHour * _hours.length;
+    final total = _variant(c).pricePerHour * _hours.length;
     final now = DateTime.now();
     return (
       start: start,
@@ -373,7 +414,7 @@ class _State extends ConsumerState<CourtDetailScreen> {
                       ])),
                     ]),
                   ),
-                  Text('${cop(c.pricePerHour)}/h', style: authText(12, weight: 700, color: AuthColors.kicker)),
+                  Text('${cop(_variant(c).pricePerHour)}/h', style: authText(12, weight: 700, color: AuthColors.kicker)),
                 ]),
                 const SizedBox(height: 12),
                 PrimaryButton(
@@ -396,17 +437,18 @@ class _State extends ConsumerState<CourtDetailScreen> {
       final pay = await _askDeposit(
         context,
         deposit: deposit,
-        total: c.pricePerHour * _hours.length,
+        total: _variant(c).pricePerHour * _hours.length,
         hours: _hours.length,
+        courtType: c.options.length > 1 ? _variant(c) : null,
         lastMinute: lastMinute,
       );
       if (pay != true) return; // si cierra el aviso no se crea la reserva
     }
     setState(() => _busy = true);
     try {
-      final b = await ref.read(apiProvider).createBooking(c.id, start, _hours.length);
+      final b = await ref.read(apiProvider).createBooking(c.id, start, _hours.length, courtType: _variant(c).type);
       ref.invalidate(myBookingsProvider);
-      ref.invalidate(availabilityProvider(_key));
+      ref.invalidate(availabilityProvider(_key(c)));
       if (!mounted) return;
       if (b.status == BookingStatus.pendingPayment) {
         context.pushReplacement('/bookings/${b.id}/pay');
@@ -417,7 +459,7 @@ class _State extends ConsumerState<CourtDetailScreen> {
     } on ApiException catch (e) {
       if (e.code == 'SLOT_TAKEN') {
         // Alguien más tomó la hora mientras tanto: se recarga la disponibilidad.
-        ref.invalidate(availabilityProvider(_key));
+        ref.invalidate(availabilityProvider(_key(c)));
         setState(() => _hours = {});
       }
       if (mounted) showError(context, e);
@@ -450,6 +492,7 @@ Future<bool?> _askDeposit(
   required int total,
   required int hours,
   required bool lastMinute,
+  CourtVariant? courtType,
 }) {
   final percent = total == 0 ? 0 : (deposit * 100 / total).round();
   return showModalBottomSheet<bool>(
@@ -501,6 +544,10 @@ Future<bool?> _askDeposit(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: const Color(0xFFF2F5EE), borderRadius: BorderRadius.circular(16)),
               child: Column(children: [
+                if (courtType != null) ...[
+                  _SummaryRow('Tipo', '${courtType.label} · ${courtType.players}'),
+                  const SizedBox(height: 8),
+                ],
                 _SummaryRow('Reserva', '$hours h'),
                 const SizedBox(height: 8),
                 _SummaryRow('Total', cop(total)),
@@ -616,6 +663,44 @@ class _StepTitle extends StatelessWidget {
         ),
         if (trailing != null) Text(trailing!, style: authText(12, weight: 600, color: const Color(0xFF78877E))),
       ]);
+}
+
+/// Tarjeta de un tipo de cancha: nombre, jugadores por equipo y precio por hora.
+class _TypeTile extends StatelessWidget {
+  const _TypeTile({required this.variant, required this.selected, required this.onTap});
+  final CourtVariant variant;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: selected,
+        label: '${variant.label}, ${variant.players}, ${cop(variant.pricePerHour)} por hora',
+        child: ExcludeSemantics(
+          child: Material(
+            color: selected ? AuthColors.lime : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: selected ? AuthColors.primary : const Color(0x1F143E2A), width: selected ? 2 : 1),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(variant.label, style: authText(15, weight: 800, color: AuthColors.ink)),
+                  const SizedBox(height: 2),
+                  Text(variant.players, style: authText(12, weight: 600, color: const Color(0xFF5F7066))),
+                  const SizedBox(height: 8),
+                  Text('${cop(variant.pricePerHour)}/h', style: authText(14, weight: 800, color: AuthColors.primary)),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _HourTile extends StatelessWidget {

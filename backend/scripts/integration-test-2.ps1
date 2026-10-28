@@ -13,7 +13,7 @@ $script:pass = 0; $script:fail = 0
 $script:ids = @()
 $pwd1 = 'clave-segura-1'
 
-function Call($method, $path, $body, $token) {
+function Call($method, $path, $body, $token, $tries = 0) {
   $h = @{}; if ($token) { $h.Authorization = "Bearer $token" }
   try {
     $a = @{ Method = $method; Uri = "$base$path"; Headers = $h; ContentType = 'application/json' }
@@ -21,7 +21,10 @@ function Call($method, $path, $body, $token) {
     return @{ code = 200; body = (Invoke-RestMethod @a) }
   } catch {
     $msg = $_.ErrorDetails.Message; $j = $null; try { $j = $msg | ConvertFrom-Json } catch {}
-    return @{ code = [int]$_.Exception.Response.StatusCode; body = $j; raw = $msg }
+    $code = [int]$_.Exception.Response.StatusCode
+    # /auth admite 10 peticiones por minuto: esperar y repetir en vez de fallar en cascada.
+    if ($code -eq 429 -and $tries -lt 6) { Start-Sleep 15; return Call $method $path $body $token ($tries + 1) }
+    return @{ code = $code; body = $j; raw = $msg }
   }
 }
 function Upload($path, $field, $file, $token) {
@@ -62,6 +65,8 @@ DELETE FROM review_reports WHERE reporter_id IN (SELECT id FROM tu) OR review_id
 DELETE FROM reviews WHERE author_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM tc);
 DELETE FROM payments WHERE payer_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
+DELETE FROM chat_blocks WHERE blocker_id IN (SELECT id FROM tu) OR blocked_id IN (SELECT id FROM tu);
+DELETE FROM chat_threads WHERE participant_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM refunds WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM bookings WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM courts WHERE id IN (SELECT id FROM tc);
@@ -216,7 +221,7 @@ Check "ya no está pendiente y queda en el historial con su nota" (@((Call Get '
 Check "el jugador recibió el aviso de devolución" (@((Call Get /notifications $null $p2t).body.items | Where-Object { $_.title -eq 'Devolución enviada' }).Count -eq 1) ""
 
 Write-Host "== Reseñas"
-$past = Sql "INSERT INTO bookings (court_id, player_id, start_at, hours, end_at, total, deposit, last_minute, status) VALUES ('$court','$($p1.user.id)', now() - interval '3 days', 1, now() - interval '3 days' + interval '1 hour', 100000, 0, false, 'confirmed') RETURNING id;" | Select-Object -First 1
+$past = Sql "INSERT INTO bookings (court_id, variant_id, player_id, start_at, hours, end_at, total, deposit, last_minute, status) VALUES ('$court', (SELECT id FROM court_variants WHERE court_id = '$court' ORDER BY court_type LIMIT 1), '$($p1.user.id)', now() - interval '3 days', 1, now() - interval '3 days' + interval '1 hour', 100000, 0, false, 'confirmed') RETURNING id;" | Select-Object -First 1
 Check "reserva futura no se puede reseñar (422)" ((Call Post "/bookings/$($b.id)/review" @{ stars = 5 } $p1t).code -eq 422) ""
 Check "otro jugador no reseña mi reserva (404)" ((Call Post "/bookings/$past/review" @{ stars = 5 } $p2t).code -eq 404) ""
 Check "estrellas fuera de rango -> 400" ((Call Post "/bookings/$past/review" @{ stars = 9 } $p1t).code -eq 400) ""

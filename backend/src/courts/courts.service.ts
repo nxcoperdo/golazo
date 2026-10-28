@@ -3,7 +3,8 @@ import { AccountService } from '../auth/account.service.js';
 import { Db } from '../db/db.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { dayRangeUtc, hourSlots } from '../bookings/availability.js';
-import type { CreateCourtDto, ListCourtsQuery, PaymentMethodDto, UpdateCourtDto } from './courts.dto.js';
+import type pg from 'pg';
+import type { CourtVariantDto, CreateCourtDto, ListCourtsQuery, PaymentMethodDto, UpdateCourtDto } from './courts.dto.js';
 
 /** Columnas públicas de una cancha, con foto principal, calificación y (opcional) distancia. */
 const COURT_SELECT = (distanceSql: string) => `
@@ -11,16 +12,60 @@ const COURT_SELECT = (distanceSql: string) => `
   c.price_per_hour AS "pricePerHour", c.open_hour AS "openHour", c.close_hour AS "closeHour",
   c.requires_deposit AS "requiresDeposit", c.deposit_percent AS "depositPercent",
   c.status, ST_Y(c.location::geometry) AS lat, ST_X(c.location::geometry) AS lng,
+  (SELECT COALESCE(json_agg(json_build_object('id', v.id, 'courtType', v.court_type, 'pricePerHour', v.price_per_hour)
+                            ORDER BY v.court_type), '[]'::json)
+     FROM court_variants v WHERE v.court_id = c.id AND v.active) AS variants,
   (SELECT '/v1/files/courts/' || p.path FROM court_photos p WHERE p.court_id = c.id ORDER BY p.position LIMIT 1) AS "photoUrl",
   (SELECT COALESCE(ROUND(AVG(r.stars)::numeric, 1), 0)::float FROM reviews r
      WHERE r.court_id = c.id AND r.hidden_at IS NULL) AS rating,
   (SELECT COUNT(*)::int FROM reviews r WHERE r.court_id = c.id AND r.hidden_at IS NULL) AS "reviewCount",
   ${distanceSql} AS "distanceM"`;
 
-/** Tipos de la cancha (ordenados, sin repetir) a partir de `courtTypes` o del `courtType` antiguo. */
-function resolveTypes(dto: { courtTypes?: number[]; courtType?: number }): number[] | undefined {
-  const raw = dto.courtTypes ?? (dto.courtType != null ? [dto.courtType] : undefined);
-  return raw ? [...new Set(raw)].sort((a, b) => a - b) : undefined;
+/**
+ * Tipos con precio de la cancha. Acepta `variants` (forma nueva) o `courtTypes`/`courtType` +
+ * `pricePerHour` (forma antigua, un mismo precio para todos). `priceOf` completa el precio que falte.
+ */
+function resolveVariants(
+  dto: { variants?: CourtVariantDto[]; courtTypes?: number[]; courtType?: number; pricePerHour?: number },
+  priceOf: (type: number) => number | undefined = () => undefined,
+): CourtVariantDto[] | undefined {
+  let list: CourtVariantDto[] | undefined = dto.variants;
+  if (!list) {
+    const raw = dto.courtTypes ?? (dto.courtType != null ? [dto.courtType] : undefined);
+    if (raw) {
+      list = [...new Set(raw)].map((courtType) => {
+        const pricePerHour = dto.pricePerHour ?? priceOf(courtType);
+        if (pricePerHour == null || !Number.isFinite(pricePerHour)) {
+          throw new BadRequestException({ code: 'PRICE_REQUIRED', message: 'Indica el precio de cada tipo de cancha' });
+        }
+        return { courtType, pricePerHour };
+      });
+    }
+  }
+  if (!list) return undefined;
+  if (new Set(list.map((v) => v.courtType)).size !== list.length) {
+    throw new BadRequestException({ code: 'DUPLICATE_TYPE', message: 'Cada tipo de cancha solo puede aparecer una vez' });
+  }
+  return [...list].sort((a, b) => a.courtType - b.courtType);
+}
+
+/** Deja activos solo los tipos de [variants] (con su precio) y sincroniza el resumen de la cancha. */
+async function saveVariants(c: pg.PoolClient, courtId: string, variants: CourtVariantDto[]): Promise<void> {
+  for (const v of variants) {
+    await c.query(
+      `INSERT INTO court_variants (court_id, court_type, price_per_hour) VALUES ($1,$2,$3)
+       ON CONFLICT (court_id, court_type) DO UPDATE SET price_per_hour = EXCLUDED.price_per_hour, active = true`,
+      [courtId, v.courtType, v.pricePerHour],
+    );
+  }
+  // Los tipos que ya no se ofrecen se desactivan (conservan sus reservas pasadas).
+  const types = variants.map((v) => v.courtType);
+  await c.query('UPDATE court_variants SET active = false WHERE court_id = $1 AND NOT (court_type = ANY($2::smallint[]))', [courtId, types]);
+  await c.query('UPDATE courts SET court_types = $2::smallint[], price_per_hour = $3 WHERE id = $1', [
+    courtId,
+    types,
+    Math.min(...variants.map((v) => v.pricePerHour)),
+  ]);
 }
 
 const PHOTO_URL = '/v1/files/courts/';
@@ -79,7 +124,7 @@ export class CourtsService {
     return { ...rows[0], photos: photos.rows.map((r) => `${PHOTO_URL}${r.path}`) };
   }
 
-  async availability(id: string, date: string) {
+  async availability(id: string, date: string, courtType?: number) {
     const range = dayRangeUtc(date);
     if (!range) throw new BadRequestException({ code: 'BAD_DATE', message: 'Fecha inválida (usa YYYY-MM-DD)' });
 
@@ -90,15 +135,27 @@ export class CourtsService {
     const c = court.rows[0];
     if (!c) throw new NotFoundException({ code: 'COURT_NOT_FOUND', message: 'Cancha no encontrada' });
 
+    // Sin tipo: el más barato (igual que al reservar desde una app antigua).
+    const variant = (
+      await this.db.query<{ id: string; court_type: number }>(
+        `SELECT id, court_type FROM court_variants
+         WHERE court_id = $1 AND active AND ($2::smallint IS NULL OR court_type = $2)
+         ORDER BY price_per_hour, court_type LIMIT 1`,
+        [id, courtType ?? null],
+      )
+    ).rows[0];
+    if (!variant) throw new NotFoundException({ code: 'VARIANT_NOT_FOUND', message: 'Esa cancha no ofrece ese tipo' });
+
     // Mismas reservas que bloquean el índice EXCLUDE (incluye "rechazada").
     const b = await this.db.query<{ start_at: Date; end_at: Date }>(
       `SELECT start_at, end_at FROM bookings
-       WHERE court_id = $1 AND status IN ('pending_payment','pending_review','confirmed','rejected')
+       WHERE variant_id = $1 AND status IN ('pending_payment','pending_review','confirmed','rejected')
          AND start_at < $3 AND end_at > $2`,
-      [id, range.from, range.to],
+      [variant.id, range.from, range.to],
     );
     return {
       date,
+      courtType: variant.court_type,
       hours: hourSlots({
         openHour: c.open_hour,
         closeHour: c.close_hour,
@@ -117,15 +174,29 @@ export class CourtsService {
     if (dto.closeHour <= dto.openHour) {
       throw new BadRequestException({ code: 'BAD_HOURS', message: 'El cierre debe ser después de la apertura' });
     }
-    const { rows } = await this.db.query<{ id: string }>(
-      `INSERT INTO courts (owner_id, name, description, city, address, location, covered, court_types,
-                           price_per_hour, open_hour, close_hour, requires_deposit, deposit_percent)
-       VALUES ($1,$2,$3,$4,$5, ST_SetSRID(ST_MakePoint($6::float8,$7::float8),4326)::geography,
-               $8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-      [ownerId, dto.name.trim(), dto.description ?? null, dto.city.trim(), dto.address.trim(), dto.lng, dto.lat,
-       dto.covered, resolveTypes(dto) ?? [5], dto.pricePerHour, dto.openHour, dto.closeHour, dto.requiresDeposit, dto.depositPercent ?? 30],
+    // Forma antigua sin tipos: Fútbol 5 con el precio indicado.
+    const variants = resolveVariants(
+      dto.variants == null && dto.courtTypes == null && dto.courtType == null && dto.pricePerHour != null
+        ? { ...dto, courtTypes: [5] }
+        : dto,
     );
-    return this.ownerDetail(ownerId, rows[0]!.id);
+    if (!variants) {
+      throw new BadRequestException({ code: 'TYPES_REQUIRED', message: 'Elige al menos un tipo de cancha con su precio' });
+    }
+    const id = await this.db.tx(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO courts (owner_id, name, description, city, address, location, covered, court_types,
+                             price_per_hour, open_hour, close_hour, requires_deposit, deposit_percent)
+         VALUES ($1,$2,$3,$4,$5, ST_SetSRID(ST_MakePoint($6::float8,$7::float8),4326)::geography,
+                 $8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+        [ownerId, dto.name.trim(), dto.description ?? null, dto.city.trim(), dto.address.trim(), dto.lng, dto.lat,
+         dto.covered, [5], 1000, dto.openHour, dto.closeHour, dto.requiresDeposit, dto.depositPercent ?? 30],
+      );
+      // Los tipos y el precio "desde" de la cancha se completan al guardar las modalidades.
+      await saveVariants(c, rows[0]!.id, variants);
+      return rows[0]!.id;
+    });
+    return this.ownerDetail(ownerId, id);
   }
 
   async listOwn(ownerId: string) {
@@ -190,9 +261,6 @@ export class CourtsService {
     if (dto.city !== undefined) set('city', dto.city.trim());
     if (dto.address !== undefined) set('address', dto.address.trim());
     if (dto.covered !== undefined) set('covered', dto.covered);
-    const types = resolveTypes(dto);
-    if (types !== undefined) set('court_types', types);
-    if (dto.pricePerHour !== undefined) set('price_per_hour', dto.pricePerHour);
     if (dto.openHour !== undefined) set('open_hour', dto.openHour);
     if (dto.closeHour !== undefined) set('close_hour', dto.closeHour);
     if (dto.requiresDeposit !== undefined) set('requires_deposit', dto.requiresDeposit);
@@ -201,13 +269,30 @@ export class CourtsService {
       params.push(dto.lng, dto.lat);
       sets.push(`location = ST_SetSRID(ST_MakePoint($${params.length - 1}::float8, $${params.length}::float8), 4326)::geography`);
     }
-    if (sets.length > 0) {
-      params.push(id, ownerId);
-      await this.db.query(
-        `UPDATE courts SET ${sets.join(', ')} WHERE id = $${params.length - 1} AND owner_id = $${params.length}`,
-        params,
-      );
-    }
+    // Forma antigua: sin `variants`, un cambio de precio o de tipos se aplica a los tipos actuales.
+    const legacy = dto.variants == null && (dto.pricePerHour != null || dto.courtTypes != null || dto.courtType != null);
+    const active = legacy
+      ? (await this.db.query<{ court_type: number; price_per_hour: number }>(
+          'SELECT court_type, price_per_hour FROM court_variants WHERE court_id = $1 AND active', [id])).rows
+      : [];
+    const cheapest = active.length > 0 ? Math.min(...active.map((v) => v.price_per_hour)) : undefined;
+    const variants = resolveVariants(
+      dto.pricePerHour != null && dto.courtTypes == null && dto.courtType == null
+        ? { ...dto, courtTypes: active.map((v) => v.court_type) }
+        : dto,
+      (t) => active.find((v) => v.court_type === t)?.price_per_hour ?? cheapest,
+    );
+
+    await this.db.tx(async (c) => {
+      if (sets.length > 0) {
+        params.push(id, ownerId);
+        await c.query(
+          `UPDATE courts SET ${sets.join(', ')} WHERE id = $${params.length - 1} AND owner_id = $${params.length}`,
+          params,
+        );
+      }
+      if (variants) await saveVariants(c, id, variants);
+    });
     return this.ownerDetail(ownerId, id);
   }
 

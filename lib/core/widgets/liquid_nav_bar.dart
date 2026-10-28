@@ -270,11 +270,14 @@ class _Item extends StatelessWidget {
             : icon,
       ),
       const SizedBox(height: 2),
-      Text(
-        item.label,
-        maxLines: 1,
-        overflow: TextOverflow.clip,
-        style: TextStyle(fontSize: 11, fontWeight: active ? FontWeight.w700 : FontWeight.w500, color: color),
+      // Con 6 pestañas en pantallas de 320 px el texto se achica en vez de cortarse.
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          item.label,
+          maxLines: 1,
+          style: TextStyle(fontSize: 11, fontWeight: active ? FontWeight.w700 : FontWeight.w500, color: color),
+        ),
       ),
     ]);
   }

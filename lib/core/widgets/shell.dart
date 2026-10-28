@@ -23,6 +23,8 @@ class ShellScaffold extends ConsumerStatefulWidget {
     required this.tabs,
     required this.initialTab,
     this.notificationsTab,
+    this.chatTab,
+    this.adminChat = false,
   });
 
   final List<TabSpec> tabs;
@@ -31,6 +33,12 @@ class ShellScaffold extends ConsumerStatefulWidget {
   /// Índice de la pestaña "Avisos" para mostrarle el contador de no leídos.
   final int? notificationsTab;
 
+  /// Índice de la pestaña de mensajes (chat) para mostrarle el contador.
+  final int? chatTab;
+
+  /// Administrador: el contador cuenta los chats de soporte que esperan respuesta.
+  final bool adminChat;
+
   @override
   ConsumerState<ShellScaffold> createState() => _ShellState();
 }
@@ -38,11 +46,17 @@ class ShellScaffold extends ConsumerStatefulWidget {
 class _ShellState extends ConsumerState<ShellScaffold> {
   late int _tab = widget.initialTab.clamp(0, widget.tabs.length - 1);
   Timer? _poll;
+  Timer? _chatPoll;
 
   @override
   void initState() {
     super.initState();
     _poll = Timer.periodic(const Duration(seconds: 60), (_) => ref.invalidate(notificationsProvider));
+    if (widget.chatTab != null) {
+      _chatPoll = Timer.periodic(const Duration(seconds: 30), (_) {
+        ref.invalidate(widget.adminChat ? supportInboxProvider : chatThreadsProvider);
+      });
+    }
   }
 
   @override
@@ -55,12 +69,18 @@ class _ShellState extends ConsumerState<ShellScaffold> {
   @override
   void dispose() {
     _poll?.cancel();
+    _chatPoll?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(notificationsProvider).value?.unread ?? 0;
+    final chatBadge = widget.chatTab == null
+        ? 0
+        : widget.adminChat
+            ? (ref.watch(supportInboxProvider).value?.where((i) => i.needsReply).length ?? 0)
+            : ref.watch(chatUnreadProvider);
     final content = Column(children: [
       const VerifyBanner(),
       Expanded(
@@ -81,7 +101,11 @@ class _ShellState extends ConsumerState<ShellScaffold> {
             NavItem(
               label: widget.tabs[i].label,
               icon: widget.tabs[i].icon,
-              badge: i == widget.notificationsTab ? unread : 0,
+              badge: i == widget.notificationsTab
+                  ? unread
+                  : i == widget.chatTab
+                      ? chatBadge
+                      : 0,
             ),
         ],
       ),

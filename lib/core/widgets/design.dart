@@ -337,8 +337,9 @@ class OutlineAction extends StatelessWidget {
 
 /// Botón sólido pequeño ("Aprobar", "Pagar anticipo"); [danger] = rojo.
 class SolidAction extends StatelessWidget {
-  const SolidAction({super.key, required this.label, required this.onPressed, this.danger = false, this.busy = false});
+  const SolidAction({super.key, required this.label, required this.onPressed, this.danger = false, this.busy = false, this.icon});
   final String label;
+  final IconData? icon;
   final VoidCallback? onPressed;
   final bool danger;
   final bool busy;
@@ -354,7 +355,13 @@ class SolidAction extends StatelessWidget {
         onPressed: busy ? null : onPressed,
         child: busy
             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Text(label),
+            : icon == null
+                ? Text(label)
+                : Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(icon, size: 18),
+                    const SizedBox(width: 8),
+                    Text(label),
+                  ]),
       );
 }
 

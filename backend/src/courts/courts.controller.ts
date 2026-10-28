@@ -54,7 +54,7 @@ export class CourtsController {
 
   @Get(':id/availability')
   availability(@Param('id', ParseUUIDPipe) id: string, @Query() q: AvailabilityQuery) {
-    return this.courts.availability(id, q.date);
+    return this.courts.availability(id, q.date, q.courtType);
   }
 }
 

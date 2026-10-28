@@ -7,6 +7,7 @@ import '../../core/location.dart';
 import '../../core/widgets/auth_ui.dart';
 import '../../core/widgets/design.dart';
 import '../../core/widgets/ui.dart';
+import '../../data/models.dart' show CourtVariant;
 import '../../data/providers.dart';
 
 /// Alta de una cancha nueva. Nace "pendiente": se hace visible cuando Golazo la activa.
@@ -23,13 +24,12 @@ class _State extends ConsumerState<CourtFormScreen> {
   final _city = TextEditingController();
   final _address = TextEditingController();
   final _description = TextEditingController();
-  final _price = TextEditingController();
   final _lat = TextEditingController();
   final _lng = TextEditingController();
   int _open = 8;
   int _close = 23;
   bool _covered = false;
-  List<int> _courtTypes = [5];
+  List<CourtVariant> _variants = const [CourtVariant(type: 5, pricePerHour: 0)];
   bool _deposit = false;
   int _percent = 30;
   bool _busy = false;
@@ -38,7 +38,7 @@ class _State extends ConsumerState<CourtFormScreen> {
 
   @override
   void dispose() {
-    for (final c in [_name, _city, _address, _description, _price, _lat, _lng]) {
+    for (final c in [_name, _city, _address, _description, _lat, _lng]) {
       c.dispose();
     }
     super.dispose();
@@ -89,8 +89,7 @@ class _State extends ConsumerState<CourtFormScreen> {
         'lat': double.parse(_lat.text.replaceAll(',', '.')),
         'lng': double.parse(_lng.text.replaceAll(',', '.')),
         'covered': _covered,
-        'courtTypes': _courtTypes,
-        'pricePerHour': int.parse(_price.text.replaceAll(RegExp(r'\D'), '')),
+        'variants': [for (final v in _variants) v.toJson()],
         'openHour': _open,
         'closeHour': _close,
         'requiresDeposit': _deposit,
@@ -233,25 +232,13 @@ class _State extends ConsumerState<CourtFormScreen> {
             ]),
             const SizedBox(height: 16),
           ],
-          AuthField(
-            label: 'Precio por hora (COP)',
-            icon: Icons.attach_money,
-            hint: '90000',
-            controller: _price,
-            keyboardType: TextInputType.number,
-            validator: (v) {
-              final n = int.tryParse((v ?? '').replaceAll(RegExp(r'\D'), ''));
-              return (n == null || n < 1000 || n > 1000000) ? 'Entre \$1.000 y \$1.000.000' : null;
-            },
-          ),
-          const SizedBox(height: 16),
           Row(children: [
             Expanded(child: PickTile(label: 'Abre', value: hourLabel(_open), onTap: () => _pickHour(true))),
             const SizedBox(width: 12),
             Expanded(child: PickTile(label: 'Cierra', value: hourLabel(_close), onTap: () => _pickHour(false))),
           ]),
           const SizedBox(height: 16),
-          CourtTypePicker(value: _courtTypes, onChanged: (t) => setState(() => _courtTypes = t)),
+          CourtVariantsEditor(initial: _variants, onChanged: (v) => _variants = v),
           const SizedBox(height: 16),
           ToggleRow(title: 'Cancha techada', value: _covered, onChanged: (v) => setState(() => _covered = v)),
           const SizedBox(height: 12),

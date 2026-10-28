@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { Db } from '../db/db.service.js';
 import { MailerService } from '../notifications/mailer.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { AuthService, type AuthResult, type UserRow } from './auth.service.js';
 
 const RESET_TTL_MS = 3600_000;
@@ -22,6 +23,7 @@ export class AccountService {
     private readonly db: Db,
     private readonly auth: AuthService,
     private readonly mailer: MailerService,
+    private readonly storage: StorageService,
     config: ConfigService,
   ) {
     this.resetUrl = config.get<string>('APP_RESET_URL') ?? 'golazo://reset-password';
@@ -175,14 +177,31 @@ export class AccountService {
   }
 
   async anonymizeUser(userId: string): Promise<void> {
-    await this.db.tx((c) => this.anonymize(c, userId));
+    const files = await this.db.tx((c) => this.anonymize(c, userId));
+    // Las fotos del chat se borran del disco solo cuando la transacción ya se confirmó.
+    for (const f of files) await this.storage.remove('chat', f);
   }
 
   /**
    * Quita los datos personales pero conserva reservas, pagos y reseñas (historial
    * de transacciones). Cancela sus reservas futuras y suspende sus canchas.
    */
-  private async anonymize(c: PoolClient, userId: string): Promise<void> {
+  private async anonymize(c: PoolClient, userId: string): Promise<string[]> {
+    // Chat: sus fotos y las de su hilo de soporte se eliminan; sus textos pasan a «Mensaje eliminado».
+    const imgs = await c.query<{ image_path: string }>(
+      `SELECT image_path FROM chat_messages
+       WHERE image_path IS NOT NULL
+         AND (sender_id = $1 OR thread_id IN (SELECT id FROM chat_threads WHERE kind = 'support' AND participant_id = $1))`,
+      [userId],
+    );
+    await c.query(
+      `UPDATE chat_messages SET body = 'Mensaje eliminado', image_path = NULL, hidden_at = COALESCE(hidden_at, now())
+       WHERE sender_id = $1`,
+      [userId],
+    );
+    await c.query(`DELETE FROM chat_threads WHERE kind = 'support' AND participant_id = $1`, [userId]);
+    await c.query('DELETE FROM chat_blocks WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
+    await c.query('DELETE FROM chat_reads WHERE user_id = $1', [userId]);
     await c.query(
       `UPDATE users SET name = 'Usuario eliminado', email = NULL, phone = NULL, google_sub = NULL,
                         password_hash = NULL, deleted_at = now(), suspended_at = NULL
@@ -206,6 +225,7 @@ export class AccountService {
       );
     }
     await c.query(`UPDATE courts SET status = 'suspended', suspended_by_admin = true WHERE owner_id = $1`, [userId]);
+    return imgs.rows.map((r) => r.image_path);
   }
 
   private async setPassword(userId: string, next: string): Promise<void> {

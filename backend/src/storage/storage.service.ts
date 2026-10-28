@@ -5,7 +5,7 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import sharp from 'sharp';
 
-export type Folder = 'proofs' | 'courts';
+export type Folder = 'proofs' | 'courts' | 'chat';
 
 /** Tamaño máximo de archivo subido (también lo aplica multer en los controladores). */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;

@@ -157,11 +157,11 @@ final courtsProvider = FutureProvider.autoDispose<List<Court>>((ref) {
 final courtDetailProvider = FutureProvider.autoDispose.family<Court, String>(
     (ref, id) => ref.watch(apiProvider).court(id));
 
-/// Clave: cancha + día de Colombia (fecha UTC medianoche).
-typedef AvailabilityKey = ({String courtId, DateTime day});
+/// Clave: cancha + día de Colombia (fecha UTC medianoche) + tipo de cancha.
+typedef AvailabilityKey = ({String courtId, DateTime day, int? courtType});
 
 final availabilityProvider = FutureProvider.autoDispose.family<List<HourSlot>, AvailabilityKey>(
-    (ref, k) => ref.watch(apiProvider).availability(k.courtId, k.day));
+    (ref, k) => ref.watch(apiProvider).availability(k.courtId, k.day, courtType: k.courtType));
 
 final courtReviewsProvider = FutureProvider.autoDispose.family<List<Review>, String>(
     (ref, id) => ref.watch(apiProvider).reviews(id));
@@ -179,6 +179,39 @@ final bookingProvider = FutureProvider.autoDispose.family<Booking, String>((ref,
 final notificationsProvider = FutureProvider.autoDispose<NotificationsPage>((ref) {
   ref.watch(userIdProvider);
   return ref.watch(apiProvider).notifications();
+});
+
+// ---------------- Chat ----------------
+
+/// Mis conversaciones (cancha y soporte). La barra de pestañas las refresca cada ~30 s.
+final chatThreadsProvider = FutureProvider.autoDispose<List<ChatThread>>((ref) {
+  ref.watch(userIdProvider);
+  return ref.watch(apiProvider).chatThreads();
+});
+
+/// Mensajes sin leer de todos mis chats (contador de la pestaña «Mensajes»).
+final chatUnreadProvider = Provider.autoDispose<int>(
+  (ref) => ref.watch(chatThreadsProvider).value?.fold<int>(0, (sum, t) => sum + t.unread) ?? 0,
+);
+
+final chatImageProvider = FutureProvider.autoDispose.family<Uint8List, String>((ref, messageId) {
+  ref.watch(userIdProvider);
+  return ref.watch(apiProvider).chatImage(messageId);
+});
+
+final supportInboxProvider = FutureProvider.autoDispose<List<SupportInboxItem>>((ref) {
+  ref.watch(userIdProvider);
+  return ref.watch(apiProvider).adminSupportInbox();
+});
+
+final adminCourtChatsProvider = FutureProvider.autoDispose.family<List<AdminChatThread>, String>((ref, search) {
+  ref.watch(userIdProvider);
+  return ref.watch(apiProvider).adminCourtChats(search: search);
+});
+
+final chatReportsProvider = FutureProvider.autoDispose<List<ChatReport>>((ref) {
+  ref.watch(userIdProvider);
+  return ref.watch(apiProvider).adminChatReports();
 });
 
 // ---------------- Dueño ----------------

@@ -451,8 +451,11 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Ubicación lista · usar otra vez'), findsOneWidget);
       await t.enterText(find.widgetWithText(TextFormField, '90000'), '90000');
-      await t.tap(find.text('Fútbol 7'));
-      await t.pump();
+      await t.ensureVisible(find.text('Fútbol 7'));
+      await t.tap(find.text('Fútbol 7')); // agrega el tipo con su propia fila de precio
+      await t.pumpAndSettle();
+      expect(find.text('Fútbol 7 · 7 vs 7'), findsOneWidget);
+      await t.enterText(find.widgetWithText(TextFormField, '90000').last, '120000');
       await t.ensureVisible(find.text('Exigir anticipo'));
       await t.tap(find.text('Exigir anticipo'));
       await t.pumpAndSettle();
@@ -464,8 +467,10 @@ void main() {
       expect(api.createdCourt, isNotNull);
       expect(api.createdCourt!['name'], 'La Bombonera 5');
       expect(api.createdCourt!['lat'], 4.711);
-      expect(api.createdCourt!['courtTypes'], [5, 7]); // Fútbol 5 (por defecto) + el 7 marcado
-      expect(api.createdCourt!['pricePerHour'], 90000);
+      expect(api.createdCourt!['variants'], [
+        {'courtType': 5, 'pricePerHour': 90000}, // Fútbol 5 (por defecto)
+        {'courtType': 7, 'pricePerHour': 120000}, // Fútbol 7 con su propio precio
+      ]);
       expect(api.createdCourt!['requiresDeposit'], true);
       expect(api.createdCourt!['depositPercent'], 30);
       expect(find.text('GESTION new'), findsOneWidget);
@@ -515,7 +520,7 @@ void main() {
       expect(find.text('Mensualidad'), findsOneWidget);
       expect(find.textContaining(r'$100.000'), findsNothing);
       expect(find.text('Renovar mensualidad'), findsNothing);
-      expect(find.text('Contactar soporte'), findsOneWidget);
+      expect(find.text('Escribir por WhatsApp'), findsOneWidget);
     });
 
     testWidgets('ocultar la cancha pide confirmación', (t) async {
@@ -555,7 +560,9 @@ void main() {
       await t.tap(find.text('Guardar cambios'));
       await t.pumpAndSettle();
       expect(api.updated!['name'], 'La Bombonera 6');
-      expect(api.updated!['courtTypes'], [7]);
+      expect(api.updated!['variants'], [
+        {'courtType': 7, 'pricePerHour': 90000},
+      ]);
       expect(api.updated!['requiresDeposit'], true);
     });
 
@@ -567,32 +574,51 @@ void main() {
       expect(find.text('Oculta hasta que Golazo la active.'), findsOneWidget);
       expect(find.text('Pagar mensualidad'), findsNothing);
       expect(find.text('Transfiere a la cuenta de la plataforma'), findsNothing);
-      await t.ensureVisible(find.text('Contactar soporte'));
+      await t.ensureVisible(find.text('Escribir por WhatsApp'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Contactar soporte'));
+      await t.tap(find.text('Escribir por WhatsApp'));
       await t.pumpAndSettle();
-      expect(opened.single.path, '/legal/soporte');
+      expect(opened.single.host, 'wa.me');
+      expect(opened.single.path, '/573219429385');
+      expect(opened.single.queryParameters['text'], contains('quiero activar mi cancha «La Bombonera 5»'));
+    });
+
+    testWidgets('cancha activa: WhatsApp con mensaje de renovación', (t) async {
+      final opened = <Uri>[];
+      final api = api0(sub: CourtSubscription(activeUntil: dateParam(coToday().add(const Duration(days: 3)))));
+      await pumpScreen(t, CourtManageScreen(courtId: 'c1'), api, opened: opened);
+      await t.ensureVisible(find.text('Escribir por WhatsApp'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Escribir por WhatsApp'));
+      await t.pumpAndSettle();
+      expect(opened.single.host, 'wa.me');
+      expect(opened.single.queryParameters['text'], contains('renovar la mensualidad de mi cancha «La Bombonera 5»'));
     });
   });
 
-  testWidgets('selector de tipos: se pueden marcar varios y siempre queda uno', (t) async {
-    var value = [5];
-    await t.pumpWidget(StatefulBuilder(builder: (context, setState) => MaterialApp(
-          home: Scaffold(body: CourtTypePicker(value: value, onChanged: (v) => setState(() => value = v))),
-        )));
-    await t.tap(find.text('Fútbol 7'));
-    await t.pump();
+  testWidgets('editor de tipos: cada tipo con su precio y siempre queda uno', (t) async {
+    var value = [const CourtVariant(type: 5, pricePerHour: 0)];
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: CourtVariantsEditor(initial: value, onChanged: (v) => value = v),
+        ),
+      ),
+    ));
+    expect(find.text('Fútbol 5 · 5 vs 5'), findsOneWidget);
+    expect(find.byTooltip('Quitar Fútbol 5'), findsNothing); // con un solo tipo no se puede quitar
+
     await t.tap(find.text('Fútbol 11'));
-    await t.pump();
-    expect(value, [5, 7, 11]);
-    await t.tap(find.text('Fútbol 5'));
-    await t.pump();
-    expect(value, [7, 11]);
-    await t.tap(find.text('Fútbol 11'));
-    await t.pump();
-    await t.tap(find.text('Fútbol 7')); // intento quitar el último: no se deja
-    await t.pump();
-    expect(value, [7]);
+    await t.pumpAndSettle();
+    expect(find.text('Fútbol 11 · 11 vs 11'), findsOneWidget);
+    await t.enterText(find.widgetWithText(TextFormField, '90000').first, '60000');
+    await t.enterText(find.widgetWithText(TextFormField, '90000').last, '150000');
+    expect([for (final v in value) (v.type, v.pricePerHour)], [(5, 60000), (11, 150000)]);
+
+    await t.tap(find.byTooltip('Quitar Fútbol 5'));
+    await t.pumpAndSettle();
+    expect([for (final v in value) v.type], [11]);
+    expect(find.byTooltip('Quitar Fútbol 11'), findsNothing);
   });
 
   test('longDayLabel y monthShort', () {

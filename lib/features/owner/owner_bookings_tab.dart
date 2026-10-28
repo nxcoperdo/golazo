@@ -10,6 +10,7 @@ import '../../core/widgets/status_style.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
+import '../chat/chats_screen.dart';
 
 const _daysShown = 14;
 
@@ -152,7 +153,8 @@ class _State extends ConsumerState<OwnerBookingsTab> {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$time · ${b.courtName}', style: authText(14, weight: 800)),
+              Text('$time · ${b.courtName}${b.courtType == null || b.isBlock ? '' : ' · ${courtTypeLabel(b.courtType!)}'}',
+                  style: authText(14, weight: 800)),
               const SizedBox(height: 4),
               if (b.isBlock)
                 Text(b.note?.isNotEmpty == true ? b.note! : 'Horas bloqueadas por ti',
@@ -183,6 +185,16 @@ class _State extends ConsumerState<OwnerBookingsTab> {
           const SizedBox(width: 12),
           StatusPill(label, tone),
         ]),
+        if (!b.isBlock && b.status != BookingStatus.cancelled)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+              onPressed: () => openBookingChat(context, ref, b.id),
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: const Text('Chatear con el jugador'),
+            ),
+          ),
         if (b.isBlock)
           TextButton(
             style: TextButton.styleFrom(foregroundColor: const Color(0xFFAD3E37), padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),

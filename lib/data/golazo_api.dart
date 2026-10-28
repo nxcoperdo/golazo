@@ -129,8 +129,9 @@ class GolazoApi {
   Future<Court> court(String id) async => Court.fromJson(_map(await _c.get('/courts/$id')));
 
   /// Horas del día [coDay] (fecha de Colombia) de la cancha.
-  Future<List<HourSlot>> availability(String courtId, DateTime coDay) async {
-    final m = _map(await _c.get('/courts/$courtId/availability', query: {'date': dateParam(coDay)}));
+  Future<List<HourSlot>> availability(String courtId, DateTime coDay, {int? courtType}) async {
+    final m = _map(await _c.get('/courts/$courtId/availability',
+        query: {'date': dateParam(coDay), 'courtType': ?courtType}));
     return _rows(m['hours']).map((h) => HourSlot(h['hour'] as int, h['free'] as bool)).toList();
   }
 
@@ -139,11 +140,12 @@ class GolazoApi {
 
   // ---------------- Reservas del jugador ----------------
 
-  Future<Booking> createBooking(String courtId, DateTime startAt, int hours) async =>
+  Future<Booking> createBooking(String courtId, DateTime startAt, int hours, {int? courtType}) async =>
       Booking.fromJson(_map(await _c.post('/bookings', body: {
         'courtId': courtId,
         'startAt': startAt.toUtc().toIso8601String(),
         'hours': hours,
+        'courtType': ?courtType,
       })));
 
   Future<List<Booking>> myBookings() async =>
@@ -266,6 +268,61 @@ class GolazoApi {
 
   /// Imagen del comprobante (requiere sesión).
   Future<Uint8List> proofImage(String paymentId) => _c.getBytes('/payments/$paymentId/proof');
+
+  // ---------------- Chat ----------------
+
+  Future<List<ChatThread>> chatThreads() async =>
+      _rows(await _c.get('/chat/threads')).map(ChatThread.fromJson).toList();
+
+  /// Abre (o crea) el chat de una reserva: lo pueden pedir el jugador o el dueño.
+  Future<ChatThread> openBookingChat(String bookingId) async =>
+      ChatThread.fromJson(_map(await _c.post('/chat/bookings/$bookingId')));
+
+  Future<ChatThread> openSupportChat() async => ChatThread.fromJson(_map(await _c.post('/chat/support')));
+
+  /// Sin [after] trae los últimos mensajes; con [after] solo los nuevos. [admin] usa las rutas del administrador.
+  Future<ChatPage> chatMessages(String threadId, {int? after, bool admin = false}) async => ChatPage.fromJson(
+      _map(await _c.get('${admin ? '/admin' : ''}/chat/threads/$threadId/messages', query: {'after': ?after})));
+
+  Future<ChatMessage> sendChatMessage(
+    String threadId, {
+    String? body,
+    Uint8List? image,
+    String? filename,
+    bool admin = false,
+  }) async {
+    final path = '${admin ? '/admin' : ''}/chat/threads/$threadId/messages';
+    final dynamic data = image == null
+        ? await _c.post(path, body: {'body': body})
+        : await _c.upload(path,
+            field: 'image',
+            bytes: image,
+            filename: filename ?? 'foto.jpg',
+            fields: {if (body != null && body.isNotEmpty) 'body': body});
+    return ChatMessage.fromJson(_map(data));
+  }
+
+  Future<Uint8List> chatImage(String messageId) => _c.getBytes('/chat/images/$messageId');
+
+  Future<void> reportChatMessage(String messageId, {String? reason}) => _c.post('/chat/messages/$messageId/report',
+      body: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()});
+
+  Future<void> blockChatUser(String userId) => _c.post('/chat/blocks/$userId');
+  Future<void> unblockChatUser(String userId) => _c.delete('/chat/blocks/$userId');
+
+  Future<List<SupportInboxItem>> adminSupportInbox() async =>
+      _rows(await _c.get('/admin/chat/support')).map(SupportInboxItem.fromJson).toList();
+
+  Future<List<AdminChatThread>> adminCourtChats({String? search}) async =>
+      _rows(await _c.get('/admin/chat/threads', query: {if (search != null && search.isNotEmpty) 'search': search}))
+          .map(AdminChatThread.fromJson)
+          .toList();
+
+  Future<List<ChatReport>> adminChatReports() async =>
+      _rows(await _c.get('/admin/chat/reports')).map(ChatReport.fromJson).toList();
+
+  Future<void> resolveChatReport(String id) => _c.post('/admin/chat/reports/$id/resolve');
+  Future<void> hideChatMessage(String messageId) => _c.post('/admin/chat/messages/$messageId/hide');
 
   // ---------------- Administrador ----------------
 

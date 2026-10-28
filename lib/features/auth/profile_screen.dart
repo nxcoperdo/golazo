@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config.dart';
 import '../../core/google_auth.dart';
 import '../../core/validators.dart';
 import '../../core/widgets/auth_ui.dart';
@@ -10,6 +11,7 @@ import '../../core/widgets/legal_consent.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
+import '../chat/chats_screen.dart';
 
 /// Perfil de cualquier rol: datos, correo, contraseña, cerrar sesión y borrar cuenta.
 class ProfileScreen extends ConsumerWidget {
@@ -108,18 +110,34 @@ class ProfileScreen extends ConsumerWidget {
           padding: EdgeInsets.zero,
           margin: EdgeInsets.zero,
           child: Column(children: [
+            if (user.role != Role.admin) ...[
+              _Row(
+                label: null,
+                value: 'Chat con soporte',
+                icon: Icons.forum_outlined,
+                trailing: const Icon(Icons.chevron_right, size: 18, color: AuthColors.muted),
+                onTap: () => openSupportChat(context, ref),
+              ),
+              const Divider(height: 1, color: Color(0x14143E2A)),
+            ],
             for (final (i, page) in LegalPage.values.indexed) ...[
               if (i > 0) const Divider(height: 1, color: Color(0x14143E2A)),
               _Row(
                 label: null,
-                value: page.label,
+                value: page == LegalPage.support ? 'Soporte por WhatsApp' : page.label,
                 icon: switch (page) {
                   LegalPage.terms => Icons.description_outlined,
                   LegalPage.privacy => Icons.privacy_tip_outlined,
                   LegalPage.support => Icons.support_agent_outlined,
                 },
-                trailing: const Icon(Icons.open_in_new, size: 16, color: AuthColors.muted),
-                onTap: () => ref.read(openUrlProvider)(page.uri),
+                trailing: Icon(page == LegalPage.support ? Icons.chat_outlined : Icons.open_in_new,
+                    size: 16, color: AuthColors.muted),
+                onTap: () => ref.read(openUrlProvider)(
+                  page == LegalPage.support
+                      ? AppConfig.whatsappUri(
+                          'Hola, necesito ayuda con Golazo.${user.email == null ? '' : ' Mi correo: ${user.email}'}')
+                      : page.uri,
+                ),
               ),
             ],
           ]),

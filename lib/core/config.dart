@@ -26,6 +26,16 @@ class AppConfig {
         '529889456175-4ec4f0mrquppie69ta0oma3tjfk6spc4.apps.googleusercontent.com',
   );
 
+  /// WhatsApp de soporte (con indicativo, solo dígitos). Cambiable con --dart-define=SUPPORT_WHATSAPP=57...
+  static const supportWhatsapp = String.fromEnvironment('SUPPORT_WHATSAPP', defaultValue: '573219429385');
+
+  /// Enlace de WhatsApp al soporte, con el mensaje ya escrito (abre la app de WhatsApp o el navegador).
+  static Uri whatsappUri([String? message]) => Uri.parse(
+        message == null || message.isEmpty
+            ? 'https://wa.me/$supportWhatsapp'
+            : 'https://wa.me/$supportWhatsapp?text=${Uri.encodeComponent(message)}',
+      );
+
   /// Páginas públicas legales del servidor (sin /v1): terminos, privacidad, eliminar-cuenta, soporte.
   static String legalUrl(String page) => '$origin/legal/$page';
 

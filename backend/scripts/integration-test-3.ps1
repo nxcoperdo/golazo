@@ -12,7 +12,7 @@ $script:pass = 0; $script:fail = 0
 $script:ids = @()
 $pwd1 = 'clave-segura-1'
 
-function Call($method, $path, $body, $token) {
+function Call($method, $path, $body, $token, $tries = 0) {
   $h = @{}; if ($token) { $h.Authorization = "Bearer $token" }
   try {
     $a = @{ Method = $method; Uri = "$base$path"; Headers = $h; ContentType = 'application/json' }
@@ -20,7 +20,10 @@ function Call($method, $path, $body, $token) {
     return @{ code = 200; body = (Invoke-RestMethod @a) }
   } catch {
     $msg = $_.ErrorDetails.Message; $j = $null; try { $j = $msg | ConvertFrom-Json } catch {}
-    return @{ code = [int]$_.Exception.Response.StatusCode; body = $j; raw = $msg }
+    $code = [int]$_.Exception.Response.StatusCode
+    # /auth admite 10 peticiones por minuto: esperar y repetir en vez de fallar en cascada.
+    if ($code -eq 429 -and $tries -lt 6) { Start-Sleep 15; return Call $method $path $body $token ($tries + 1) }
+    return @{ code = $code; body = $j; raw = $msg }
   }
 }
 function Check($name, $cond, $detail) {
@@ -62,6 +65,8 @@ DELETE FROM review_reports WHERE reporter_id IN (SELECT id FROM tu) OR review_id
 DELETE FROM reviews WHERE author_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM subscription_periods WHERE court_id IN (SELECT id FROM tc);
 DELETE FROM payments WHERE payer_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
+DELETE FROM chat_blocks WHERE blocker_id IN (SELECT id FROM tu) OR blocked_id IN (SELECT id FROM tu);
+DELETE FROM chat_threads WHERE participant_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM refunds WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM bookings WHERE player_id IN (SELECT id FROM tu) OR court_id IN (SELECT id FROM tc);
 DELETE FROM courts WHERE id IN (SELECT id FROM tc);

@@ -42,8 +42,8 @@ Lista de pasos y respuestas listas para copiar. Lo legal (términos, privacidad,
 ### Ficha de la tienda
 - **Nombre:** Golazo — Reserva de canchas
 - **Descripción corta (80):** Encuentra y reserva canchas sintéticas de fútbol cerca de ti, en segundos.
-- **Descripción larga:** Golazo te ayuda a encontrar canchas sintéticas de fútbol en Colombia, ver horarios en vivo y reservar en pocos toques. Filtra por ciudad, tipo de cancha (fútbol 5, 6, 7, 8 u 11), precio y distancia; paga el anticipo por transferencia directa al dueño y recibe la confirmación en la app. Si tienes una cancha, administra reservas, pagos, bloqueos de horario y estadísticas desde el mismo celular.
-- **Categoría:** Deportes. **Contacto:** el correo de soporte. **Sitio web / política de privacidad:** `https://golazo-app.duckdns.org/legal/privacidad`
+- **Descripción larga:** Golazo te ayuda a encontrar canchas sintéticas de fútbol en Colombia, ver horarios en vivo y reservar en pocos toques. Filtra por ciudad, tipo de cancha (fútbol 5, 6, 7, 8 u 11), precio y distancia; paga el anticipo por transferencia directa al dueño y recibe la confirmación en la app. Chatea con el dueño mientras tengas una reserva y escríbele a soporte desde la app. Si tienes una cancha, administra reservas, pagos, bloqueos de horario y estadísticas desde el mismo celular.
+- **Categoría:** Deportes. **Contacto:** el correo de soporte (chat de soporte dentro de la app: Perfil → Chat con soporte; y WhatsApp 321 942 9385 como alternativa: «Escribir por WhatsApp» en la tarjeta de mensualidad del dueño y «Soporte por WhatsApp» en el Perfil). **Sitio web / política de privacidad:** `https://golazo-app.duckdns.org/legal/privacidad`
 - Recursos: ícono 512×512, gráfico de funciones 1024×500, mínimo 2 capturas de teléfono (jugador: lista y detalle; dueño: reservas).
 
 ### Contenido de la app
@@ -51,14 +51,15 @@ Lista de pasos y respuestas listas para copiar. Lo legal (términos, privacidad,
 - **Público objetivo:** 18+ (no es para niños).
 - **Anuncios:** no. **Acceso de revisor:** dar las cuentas demo (jugador y dueño).
 - **Compras dentro de la app:** ninguna. Las reservas son servicios físicos pagados por transferencia directa entre usuarios; la mensualidad de los dueños se gestiona fuera de la app.
-- **Clasificación de contenido:** cuestionario IARC. Hay reseñas de usuarios (contenido generado por usuarios con reporte y moderación).
+- **Clasificación de contenido:** cuestionario IARC. Hay contenido generado por usuarios: reseñas y chats (jugador–dueño y con soporte), con reporte, bloqueo de usuarios y moderación del administrador.
 
 ### Seguridad de los datos (Data safety)
 | Dato | ¿Se recopila? | Uso | Compartido |
 |---|---|---|---|
 | Nombre, correo, celular | Sí | Funciones de la app, cuenta | No (el dueño ve nombre y celular de sus reservas) |
 | Ubicación aproximada | Sí, solo si el usuario lo permite | Ordenar canchas por distancia | No |
-| Fotos | Sí (canchas y comprobantes) | Funciones de la app | No |
+| Fotos | Sí (canchas, comprobantes y fotos enviadas en el chat) | Funciones de la app | No |
+| Mensajes en la app (chat) | Sí | Funciones de la app, soporte y moderación (el administrador puede revisarlos); se borran a los 12 meses | Solo con el otro participante del chat |
 | Identificadores de dispositivo (token push) | Sí | Notificaciones | Con Google (FCM) |
 | Historial de reservas/pagos | Sí | Funciones de la app | No |
 - Datos cifrados en tránsito: **Sí** (HTTPS). El usuario puede pedir que se borren sus datos: **Sí**.
@@ -66,8 +67,8 @@ Lista de pasos y respuestas listas para copiar. Lo legal (términos, privacidad,
 
 ### Permisos y su justificación
 - **Ubicación (mientras se usa):** «Cerca de mí» y autocompletar la ubicación de una cancha.
-- **Cámara / fotos:** fotos de canchas y comprobantes de pago.
-- **Notificaciones:** avisos de reservas y pagos.
+- **Cámara / fotos:** fotos de canchas, comprobantes de pago y fotos del chat.
+- **Notificaciones:** avisos de reservas, pagos y mensajes nuevos del chat.
 
 ### Pruebas obligatorias para cuentas personales nuevas
 Las cuentas personales creadas después de nov. 2023 deben hacer una **prueba cerrada** (mín. 12 testers durante 14 días) antes de pasar a producción. Verifica en Play Console si aplica a tu cuenta; si ya tenías una app publicada, normalmente ya cumpliste el requisito.
@@ -84,14 +85,14 @@ Las cuentas personales creadas después de nov. 2023 deben hacer una **prueba ce
 - **4.8 Inicio de sesión con Apple:** en iOS no se muestra «Continuar con Google» (solo correo y contraseña), así que no se exige Apple. Si se quiere Google en iOS hay que añadir antes «Iniciar sesión con Apple».
 - **5.1.1(v) Borrar la cuenta:** existe dentro de la app (Perfil → Borrar mi cuenta).
 - **3.1.1 Compras:** la app no cobra nada; los pagos son transferencias entre usuarios por servicios físicos y la mensualidad se cobra fuera de la app.
-- **1.2 Contenido de usuarios:** reseñas con reporte, moderación del administrador y contacto de soporte visible en Perfil.
+- **1.2 Contenido de usuarios:** reseñas y chats con reporte (mantener pulsado un mensaje → Reportar), bloqueo de usuarios (menú ⋮ del chat), moderación del administrador (ocultar mensajes y reseñas) y soporte visible en Perfil. Los términos prohíben contenido ofensivo.
 - **Privacidad:** URL `https://golazo-app.duckdns.org/legal/privacidad`.
 
 ### Etiquetas de privacidad (App Privacy)
-Datos vinculados a la identidad del usuario, **no** usados para seguimiento: información de contacto (nombre, correo, teléfono), ubicación aproximada, fotos, identificadores (token de notificaciones) e historial de compras/reservas. Finalidad: funcionalidad de la app.
+Datos vinculados a la identidad del usuario, **no** usados para seguimiento: información de contacto (nombre, correo, teléfono), ubicación aproximada, fotos, otro contenido del usuario (mensajes del chat), identificadores (token de notificaciones) e historial de compras/reservas. Finalidad: funcionalidad de la app.
 
 ### Notas para el revisor (copiar tal cual)
-> Golazo es una plataforma para reservar canchas sintéticas de fútbol en Colombia. No vende bienes digitales ni cobra dentro de la app: el jugador transfiere el anticipo directamente al dueño y sube el comprobante. Cuentas de prueba — Jugador: `...@...` / `...`; Dueño de cancha: `...@...` / `...`. Reservar: Canchas → elegir una cancha → elegir horario → Reservar. Borrar cuenta: Perfil → Borrar mi cuenta. Soporte: Perfil → Soporte.
+> Golazo es una plataforma para reservar canchas sintéticas de fútbol en Colombia. No vende bienes digitales ni cobra dentro de la app: el jugador transfiere el anticipo directamente al dueño y sube el comprobante. Cuentas de prueba — Jugador: `...@...` / `...`; Dueño de cancha: `...@...` / `...`. Reservar: Canchas → elegir una cancha → elegir horario → Reservar. Borrar cuenta: Perfil → Borrar mi cuenta. Chat: con una reserva activa, «Chatear con el dueño» en Reservas; los mensajes se pueden reportar (mantener pulsado) y el usuario se puede bloquear (menú ⋮). Soporte: Perfil → Chat con soporte.
 
 - **Cumplimiento de exportación:** solo usa HTTPS estándar (responder que usa cifrado exento).
 - Capturas: 6,9" y 6,5" (iPhone) como mínimo.

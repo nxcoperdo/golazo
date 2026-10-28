@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
+import { ChatModule } from './chat/chat.module.js';
 import { CourtsModule } from './courts/courts.module.js';
 import { DbModule } from './db/db.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -32,6 +33,7 @@ import { StorageModule } from './storage/storage.module.js';
     BookingsModule,
     PaymentsModule,
     RefundsModule,
+    ChatModule,
     ReviewsModule,
     OwnerModule,
     PlatformModule,

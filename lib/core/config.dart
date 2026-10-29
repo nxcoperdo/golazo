@@ -1,20 +1,14 @@
-import 'package:flutter/foundation.dart';
-
 /// Configuración de la app. Se cambia al compilar con `--dart-define`:
 ///   flutter run --dart-define=API_URL=https://api.tudominio.com/v1
 class AppConfig {
   const AppConfig._();
 
   static const _apiFromEnv = String.fromEnvironment('API_URL');
+  static const _produccion = 'https://golazo-app.duckdns.org/v1';
 
-  /// El emulador de Android ve el computador en 10.0.2.2, no en localhost.
-  static String get apiBase {
-    if (_apiFromEnv.isNotEmpty) return _apiFromEnv;
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:3000/v1';
-    }
-    return 'http://127.0.0.1:3000/v1';
-  }
+  /// Por defecto, el servidor de producción (Android e iPhone). Para el backend local:
+  ///   flutter run --dart-define=API_URL=http://10.0.2.2:3000/v1   (emulador Android)
+  static String get apiBase => _apiFromEnv.isNotEmpty ? _apiFromEnv : _produccion;
 
   /// Servidor sin el prefijo `/v1` (las fotos llegan como `/v1/files/...`).
   static String get origin => Uri.parse(apiBase).replace(path: '').toString();

@@ -7,11 +7,20 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '../auth/auth.guard.js';
 import { Db } from '../db/db.service.js';
 import { PushService } from '../notifications/push.service.js';
+import { parseAccounts } from '../platform/accounts.js';
 import { StorageService } from '../storage/storage.service.js';
-import { LIVE_BOOKING_STATUSES, cleanBody, isChatOpen, preview } from './chat.rules.js';
+import {
+  LIVE_BOOKING_STATUSES,
+  cleanBody,
+  isChatOpen,
+  preview,
+  subscriptionReplyBody,
+  subscriptionRequestBody,
+} from './chat.rules.js';
 
 const LIVE = LIVE_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
 
@@ -86,6 +95,7 @@ export class ChatService {
     private readonly db: Db,
     private readonly push: PushService,
     private readonly storage: StorageService,
+    private readonly config: ConfigService,
   ) {}
 
   // ---------- Hilos ----------
@@ -158,6 +168,67 @@ export class ChatService {
       [user.id],
     );
     return this.summary(user, rows[0]!.id);
+  }
+
+  /**
+   * El dueño toca «Chatear con soporte» en su cancha: se abre su hilo de soporte con un mensaje suyo pidiendo
+   * activar/renovar y una respuesta automática (firmada por un administrador) con el valor, las cuentas y la
+   * instrucción de enviar el comprobante. Si ya pidió lo mismo hace menos de 12 h no se repite.
+   */
+  async requestSubscription(user: AuthUser, courtId: string) {
+    if (user.role === 'admin') {
+      throw new ForbiddenException({ code: 'ADMIN_NO_SUPPORT', message: 'Los administradores atienden el soporte, no lo consultan' });
+    }
+    const court = (
+      await this.db.query<{ name: string; status: string; email: string | null }>(
+        `SELECT c.name, c.status::text AS status, u.email FROM courts c JOIN users u ON u.id = c.owner_id
+         WHERE c.id = $1 AND c.owner_id = $2`,
+        [courtId, user.id],
+      )
+    ).rows[0];
+    if (!court) throw new NotFoundException({ code: 'COURT_NOT_FOUND', message: 'Cancha no encontrada' });
+
+    const thread = await this.openSupport(user);
+    const pending = court.status === 'pending';
+    const ask = subscriptionRequestBody(court.name, pending, court.email);
+    const dup = await this.db.query(
+      `SELECT 1 FROM chat_messages WHERE thread_id = $1 AND sender_id = $2 AND body = $3
+         AND created_at > now() - interval '12 hours' LIMIT 1`,
+      [thread.id, user.id, ask],
+    );
+    if (dup.rows.length > 0) return thread;
+
+    const admin = (
+      await this.db.query<{ id: string }>(
+        `SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL AND suspended_at IS NULL ORDER BY created_at LIMIT 1`,
+      )
+    ).rows[0];
+    const price = Number(this.config.get('SUBSCRIPTION_PRICE') ?? 100_000);
+    const accounts = parseAccounts(this.config.get<string>('PLATFORM_PAYMENT_ACCOUNTS'));
+    const reply = admin ? subscriptionReplyBody(price, accounts, pending) : null;
+
+    await this.db.tx(async (c) => {
+      const mine = (
+        await c.query<{ seq: number }>(
+          `INSERT INTO chat_messages (thread_id, sender_id, body) VALUES ($1, $2, $3) RETURNING seq::float8 AS seq`,
+          [thread.id, user.id, ask],
+        )
+      ).rows[0]!;
+      if (reply && admin) {
+        await c.query(`INSERT INTO chat_messages (thread_id, sender_id, body) VALUES ($1, $2, $3)`, [thread.id, admin.id, reply]);
+      }
+      await c.query('UPDATE chat_threads SET last_message_at = now() WHERE id = $1', [thread.id]);
+      // Lo suyo queda leído; la respuesta de soporte cuenta como nueva hasta que abra el chat.
+      await c.query(
+        `INSERT INTO chat_reads (thread_id, user_id, last_seq) VALUES ($1, $2, $3)
+         ON CONFLICT (thread_id, user_id) DO UPDATE SET last_seq = GREATEST(chat_reads.last_seq, EXCLUDED.last_seq)`,
+        [thread.id, user.id, mine.seq],
+      );
+    });
+
+    const a = await this.access(user, thread.id);
+    void this.notify(user, a, ask, false).catch((e: Error) => this.log.warn(`Push de chat falló: ${e.message}`));
+    return this.summary(user, thread.id);
   }
 
   /** Quién puede ver el hilo: el jugador, el dueño de la cancha y los administradores. Los demás ven "no existe". */

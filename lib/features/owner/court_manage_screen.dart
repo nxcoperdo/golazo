@@ -306,7 +306,7 @@ class _State extends ConsumerState<CourtManageScreen> {
         SolidAction(
           label: 'Chatear con soporte',
           icon: Icons.forum_outlined,
-          onPressed: () => openSupportChat(context, ref),
+          onPressed: () => openSubscriptionChat(context, ref, c.id),
         ),
         const SizedBox(height: 8),
         OutlineAction(

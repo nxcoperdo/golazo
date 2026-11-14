@@ -31,6 +31,16 @@ Future<void> openSupportChat(BuildContext context, WidgetRef ref) async {
   if (ok && t != null && context.mounted) openChat(context, ref, t!);
 }
 
+/// Dueño: abre el chat de soporte con el pedido de activar/renovar su cancha ya enviado y la respuesta con las cuentas.
+Future<void> openSubscriptionChat(BuildContext context, WidgetRef ref, String courtId) async {
+  ChatThread? t;
+  final ok = await guarded(context, () async => t = await ref.read(apiProvider).requestSubscriptionChat(courtId));
+  if (ok && t != null && context.mounted) {
+    ref.invalidate(chatThreadsProvider);
+    openChat(context, ref, t!);
+  }
+}
+
 /// Pestaña «Mensajes»: soporte fijo arriba y los chats con canchas (jugador) o con jugadores (dueño).
 class ChatsScreen extends ConsumerWidget {
   const ChatsScreen({super.key});

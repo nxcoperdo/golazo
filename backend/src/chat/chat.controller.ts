@@ -18,7 +18,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { createReadStream, existsSync } from 'node:fs';
 import { AuthGuard, CurrentUser, Roles, type AuthUser } from '../auth/auth.guard.js';
 import { MAX_UPLOAD_BYTES } from '../storage/storage.service.js';
@@ -33,6 +33,10 @@ class MessagesQuery {
 
 class SendDto {
   @IsOptional() @IsString() @MaxLength(MAX_BODY) body?: string;
+}
+
+class SubscriptionDto {
+  @IsUUID() courtId!: string;
 }
 
 class ReportDto {
@@ -76,6 +80,14 @@ export class ChatController {
   @Post('support')
   support(@CurrentUser() u: AuthUser) {
     return this.chat.openSupport(u);
+  }
+
+  /** Dueño: pide activar o renovar la mensualidad de su cancha; deja el mensaje y la respuesta con las cuentas. */
+  @HttpCode(200)
+  @Throttle(SEND_LIMIT)
+  @Post('support/subscription')
+  subscription(@CurrentUser() u: AuthUser, @Body() dto: SubscriptionDto) {
+    return this.chat.requestSubscription(u, dto.courtId);
   }
 
   @Get('threads/:id/messages')

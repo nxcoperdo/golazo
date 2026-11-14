@@ -1,12 +1,7 @@
 import { Controller, Get, Logger, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard, Roles } from '../auth/auth.guard.js';
-
-interface Account {
-  label: string;
-  account: string;
-  holder: string;
-}
+import { parseAccounts, type Account } from './accounts.js';
 
 /**
  * Datos de la plataforma que la app necesita mostrar. Las cuentas donde los dueños
@@ -21,24 +16,9 @@ export class PlatformController {
 
   constructor(config: ConfigService) {
     this.price = Number(config.get('SUBSCRIPTION_PRICE') ?? 100_000);
-    this.accounts = this.parse(config.get<string>('PLATFORM_PAYMENT_ACCOUNTS'));
-  }
-
-  private parse(raw: string | undefined): Account[] {
-    if (!raw) {
-      this.log.warn('PLATFORM_PAYMENT_ACCOUNTS no está definido: los dueños no verán dónde pagar la mensualidad');
-      return [];
-    }
-    try {
-      const v = JSON.parse(raw) as unknown;
-      if (!Array.isArray(v)) throw new Error('no es una lista');
-      return v
-        .filter((a): a is Account => !!a && typeof a.label === 'string' && typeof a.account === 'string' && typeof a.holder === 'string')
-        .slice(0, 5);
-    } catch (e) {
-      this.log.error(`PLATFORM_PAYMENT_ACCOUNTS inválido: ${(e as Error).message}`);
-      return [];
-    }
+    const raw = config.get<string>('PLATFORM_PAYMENT_ACCOUNTS');
+    if (!raw) this.log.warn('PLATFORM_PAYMENT_ACCOUNTS no está definido: los dueños no verán dónde pagar la mensualidad');
+    this.accounts = parseAccounts(raw, (why) => this.log.error(`PLATFORM_PAYMENT_ACCOUNTS inválido: ${why}`));
   }
 
   @UseGuards(AuthGuard)

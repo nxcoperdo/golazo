@@ -238,6 +238,21 @@ Check "el jugador tiene la respuesta sin leer antes de abrir el chat" (@((Call G
 $inbox = @((Call Get '/admin/chat/support' $null $at).body)
 Check "tras responder, ese hilo ya no espera respuesta y el otro sigue primero" ($inbox[0].participantEmail -eq 'chowner@itest.co' -and $inbox[0].needsReply -eq $true -and $inbox[1].needsReply -eq $false) "$($inbox | ConvertTo-Json -Compress)"
 
+Write-Host "== Pedir mensualidad desde el botón de soporte"
+$c2 = (Call Post /owner/courts @{ name = 'Cancha Pendiente'; city = 'Bogotá'; address = 'Cra 5 # 6-7'; lat = 4.7; lng = -74.05; covered = $true; pricePerHour = 60000; openHour = 0; closeHour = 24; requiresDeposit = $false } $o2t).body
+$sub = Call Post '/chat/support/subscription' @{ courtId = $c2.id } $o2t
+Check "el dueño abre el chat de su cancha pendiente" ($sub.code -eq 200 -and $sub.body.kind -eq 'support') "$($sub.code) $($sub.raw)"
+$sm = @((Msgs $sub.body.id $o2t $null).body.messages)
+Check "quedan 2 mensajes: el pedido del dueño y la respuesta de soporte" ($sm.Count -eq 2 -and $sm[0].fromSupport -eq $false -and $sm[1].fromSupport -eq $true) "$($sm | ConvertTo-Json -Compress)"
+Check "el pedido dice que quiere activar su cancha" ($sm[0].body -like '*activar mi cancha*Cancha Pendiente*') "$($sm[0].body)"
+Check "la respuesta pide el comprobante" ($sm[1].body -like '*comprobante*') "$($sm[1].body)"
+$sub2 = Call Post '/chat/support/subscription' @{ courtId = $c2.id } $o2t
+Check "tocar de nuevo no duplica los mensajes" ($sub2.code -eq 200 -and @((Msgs $sub.body.id $o2t $null).body.messages).Count -eq 2) ""
+Check "el pedido de una cancha activa dice renovar" ((Call Post '/chat/support/subscription' @{ courtId = $court } $ot).code -eq 200 -and @((Msgs $s2.id $ot $null).body.messages | Where-Object { $_.body -like '*renovar la mensualidad*' }).Count -eq 1) ""
+Check "cancha de otro dueño: 404" ((Call Post '/chat/support/subscription' @{ courtId = $c2.id } $ot).code -eq 404) ""
+Check "el admin no puede usarlo (403)" ((Call Post '/chat/support/subscription' @{ courtId = $c2.id } $at).code -eq 403) ""
+Check "courtId inválido: 400" ((Call Post '/chat/support/subscription' @{ courtId = 'x' } $o2t).code -eq 400) ""
+
 Write-Host "== Borrar cuenta"
 $pFoto = Upload "/chat/threads/$tid/messages" $png $p1t $null
 Check "(preparación) foto del jugador en el chat de cancha" ($pFoto.code -in 200,201) ""

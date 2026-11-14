@@ -30,6 +30,32 @@ export function cleanBody(raw: string | undefined | null): string | null {
   return t.length === 0 ? null : t;
 }
 
+/** Mensaje que "escribe" el dueño al tocar «Chatear con soporte» en su cancha. */
+export function subscriptionRequestBody(courtName: string, pending: boolean, email?: string | null): string {
+  const action = pending ? 'activar mi cancha' : 'renovar la mensualidad de mi cancha';
+  return `Hola, quiero ${action} «${courtName}» en Golazo.${email ? ` Mi correo: ${email}` : ''}`;
+}
+
+const money = (n: number) => `$${Math.round(n).toLocaleString('es-CO')}`;
+
+/** Respuesta automática de soporte: valor, cuentas y cómo mandar el comprobante. */
+export function subscriptionReplyBody(
+  price: number,
+  accounts: { label: string; account: string; holder: string }[],
+  pending: boolean,
+): string {
+  const head = pending
+    ? `¡Hola! Para activar tu cancha la mensualidad cuesta ${money(price)} por 30 días.`
+    : `¡Hola! Renovar la mensualidad cuesta ${money(price)} por 30 días.`;
+  if (accounts.length === 0) {
+    return `${head}\n\nEn un momento te enviamos por aquí los datos para pagar. Cuando pagues, adjunta la foto del comprobante en este chat.`;
+  }
+  const lines = accounts.map((a) => `• ${a.label}: ${a.account} (${a.holder})`).join('\n');
+  const tail = '\n\nCuando pagues, adjunta aquí la foto del comprobante. Lo revisamos y activamos tu cancha.';
+  const body = `${head}\n\nPuedes pagar a:\n${lines}${tail}`;
+  return body.length <= MAX_BODY ? body : `${head}\n\nPuedes pagar a:\n${lines}`.slice(0, MAX_BODY);
+}
+
 /** Vista previa para notificaciones push y listas. */
 export function preview(body: string | null, hasImage: boolean, max = 120): string {
   if (body) return body.length > max ? `${body.slice(0, max - 1)}…` : body;

@@ -74,6 +74,12 @@ class ChatApi extends FakeApi {
   }
 
   @override
+  Future<ChatThread> requestSubscriptionChat(String courtId) async {
+    calls.add('subscription:$courtId');
+    return mkThread('s1', support: true, last: null);
+  }
+
+  @override
   Future<ChatThread> openBookingChat(String bookingId) async {
     calls.add('openBooking:$bookingId');
     return mkThread('t1');

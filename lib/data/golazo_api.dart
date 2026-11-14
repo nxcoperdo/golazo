@@ -280,6 +280,10 @@ class GolazoApi {
 
   Future<ChatThread> openSupportChat() async => ChatThread.fromJson(_map(await _c.post('/chat/support')));
 
+  /// Dueño: abre el chat de soporte con el pedido de activar/renovar ya enviado y la respuesta con las cuentas.
+  Future<ChatThread> requestSubscriptionChat(String courtId) async =>
+      ChatThread.fromJson(_map(await _c.post('/chat/support/subscription', body: {'courtId': courtId})));
+
   /// Sin [after] trae los últimos mensajes; con [after] solo los nuevos. [admin] usa las rutas del administrador.
   Future<ChatPage> chatMessages(String threadId, {int? after, bool admin = false}) async => ChatPage.fromJson(
       _map(await _c.get('${admin ? '/admin' : ''}/chat/threads/$threadId/messages', query: {'after': ?after})));

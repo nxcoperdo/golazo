@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { cleanBody, isChatOpen, preview } from './chat.rules.js';
+import { MAX_BODY, cleanBody, isChatOpen, preview, subscriptionReplyBody, subscriptionRequestBody } from './chat.rules.js';
+
+describe('mensajes de mensualidad', () => {
+  const acc = { label: 'Nequi', account: '300 123 4567', holder: 'Ana Pérez' };
+
+  it('el mensaje del dueño distingue activar de renovar y puede llevar el correo', () => {
+    expect(subscriptionRequestBody('Wembley', true, 'a@b.co')).toBe('Hola, quiero activar mi cancha «Wembley» en Golazo. Mi correo: a@b.co');
+    expect(subscriptionRequestBody('Wembley', false)).toBe('Hola, quiero renovar la mensualidad de mi cancha «Wembley» en Golazo.');
+  });
+
+  it('la respuesta incluye el valor, las cuentas y pide el comprobante', () => {
+    const r = subscriptionReplyBody(100_000, [acc], true);
+    expect(r).toContain('activar tu cancha');
+    expect(r).toContain('Nequi: 300 123 4567 (Ana Pérez)');
+    expect(r).toContain('comprobante');
+  });
+
+  it('sin cuentas configuradas avisa que soporte enviará los datos', () => {
+    const r = subscriptionReplyBody(100_000, [], false);
+    expect(r).toContain('Renovar');
+    expect(r).toContain('En un momento te enviamos');
+  });
+
+  it('con 5 cuentas largas no pasa del máximo del chat', () => {
+    const long = { label: 'Banco'.repeat(6), account: '1'.repeat(40), holder: 'N'.repeat(60) };
+    expect(subscriptionReplyBody(100_000, Array(5).fill(long), true).length).toBeLessThanOrEqual(MAX_BODY);
+  });
+});
 
 describe('isChatOpen', () => {
   it('soporte siempre está abierto', () => {

@@ -4,6 +4,7 @@ import argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { Db } from '../db/db.service.js';
+import { renderEmail } from '../notifications/email-template.js';
 import { MailerService } from '../notifications/mailer.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { AuthService, type AuthResult, type UserRow } from './auth.service.js';
@@ -15,8 +16,7 @@ const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex
 
 @Injectable()
 export class AccountService {
-  private readonly resetUrl: string;
-  private readonly verifyUrl: string;
+  private readonly publicUrl: string;
   private readonly requireVerified: boolean;
 
   constructor(
@@ -26,8 +26,8 @@ export class AccountService {
     private readonly storage: StorageService,
     config: ConfigService,
   ) {
-    this.resetUrl = config.get<string>('APP_RESET_URL') ?? 'golazo://reset-password';
-    this.verifyUrl = config.get<string>('APP_VERIFY_URL') ?? 'golazo://verify-email';
+    // Los correos llevan enlaces https (clicables en cualquier cliente) a /open/*, que abre la app.
+    this.publicUrl = (config.get<string>('PUBLIC_BASE_URL') || 'http://localhost:3000').replace(/\/+$/, '');
     // Activar solo cuando el correo (SMTP) esté configurado; si no, nadie podría verificar.
     this.requireVerified = config.get('REQUIRE_EMAIL_VERIFICATION') === '1';
   }
@@ -83,11 +83,14 @@ export class AccountService {
       sha256(token),
       new Date(Date.now() + 24 * RESET_TTL_MS),
     ]);
-    await this.mailer.send(
-      u.email,
-      'Confirma tu correo en Golazo',
-      `Abre este enlace para confirmar tu correo (vale 24 horas):\n${this.verifyUrl}?token=${token}\n\nSi no creaste una cuenta, ignora este mensaje.`,
-    );
+    const mail = renderEmail({
+      title: 'Confirma tu correo',
+      preheader: 'Un toque y tu cuenta de Golazo queda lista.',
+      paragraphs: ['¡Bienvenido a Golazo! Confirma tu correo para poder reservar canchas y publicar las tuyas.'],
+      button: { label: 'Confirmar mi correo', url: `${this.publicUrl}/open/verify?token=${token}` },
+      note: 'El enlace vale 24 horas. Si no creaste una cuenta, ignora este mensaje.',
+    });
+    await this.mailer.send(u.email, 'Confirma tu correo en Golazo', mail.text, mail.html);
   }
 
   async verifyEmail(token: string): Promise<void> {
@@ -140,11 +143,14 @@ export class AccountService {
       sha256(token),
       new Date(Date.now() + RESET_TTL_MS),
     ]);
-    await this.mailer.send(
-      email,
-      'Recupera tu contraseña de Golazo',
-      `Abre este enlace para crear una contraseña nueva (vale 1 hora):\n${this.resetUrl}?token=${token}\n\nSi no fuiste tú, ignora este mensaje.`,
-    );
+    const mail = renderEmail({
+      title: 'Crea una contraseña nueva',
+      preheader: 'Recibimos una solicitud para recuperar tu contraseña.',
+      paragraphs: ['Recibimos una solicitud para recuperar tu contraseña de Golazo. Toca el botón desde tu celular para crear una nueva.'],
+      button: { label: 'Crear contraseña nueva', url: `${this.publicUrl}/open/reset?token=${token}` },
+      note: 'El enlace vale 1 hora. Si no fuiste tú, ignora este mensaje: tu contraseña no cambiará.',
+    });
+    await this.mailer.send(email, 'Recupera tu contraseña de Golazo', mail.text, mail.html);
   }
 
   async resetPassword(token: string, next: string): Promise<void> {

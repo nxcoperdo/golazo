@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import { Db } from '../db/db.service.js';
+import { renderEmail } from './email-template.js';
 import { MailerService } from './mailer.service.js';
 import { PushService } from './push.service.js';
 
@@ -52,7 +53,10 @@ export class NotificationsService {
         try {
           const { rows } = await this.db.query<{ email: string | null }>('SELECT email FROM users WHERE id = $1', [n.userId]);
           const to = rows[0]?.email;
-          if (to) await this.mailer.send(to, n.title, n.body);
+          if (to) {
+            const mail = renderEmail({ title: n.title, paragraphs: n.body.split(/\n{2,}/), preheader: n.body.slice(0, 120) });
+            await this.mailer.send(to, n.title, mail.text, mail.html);
+          }
         } catch (e) {
           this.log.warn(`Correo falló para ${n.userId}: ${(e as Error).message}`);
         }

@@ -11,6 +11,7 @@ import { DbModule } from './db/db.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { LegalModule } from './legal/legal.module.js';
+import { LinksModule } from './links/links.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { OwnerModule } from './owner/owner.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
@@ -38,6 +39,7 @@ import { StorageModule } from './storage/storage.module.js';
     OwnerModule,
     PlatformModule,
     LegalModule,
+    LinksModule,
     AdminModule,
   ],
   controllers: [HealthController],

@@ -30,6 +30,8 @@ services:
       STORAGE_DIR: /app/storage
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-Golazo <no-reply@golazo.local>}
+      # Base https de los enlaces de los correos (/open/reset, /open/verify). En el VPS sale de DOMAIN.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://${DOMAIN:-localhost}}
       APP_RESET_URL: ${APP_RESET_URL:-golazo://reset-password}
       SUBSCRIPTION_PRICE: ${SUBSCRIPTION_PRICE:-100000}
       UNPAID_MINUTES: ${UNPAID_MINUTES:-30}

@@ -6,7 +6,8 @@ import { AppModule } from './app.module.js';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // Las páginas legales son públicas y cuelgan de /legal (sin /v1).
-  app.setGlobalPrefix('v1', { exclude: ['legal', 'legal/version', 'legal/:page'] });
+  // /open/:target es el puente https → app de los enlaces de los correos.
+  app.setGlobalPrefix('v1', { exclude: ['legal', 'legal/version', 'legal/:page', 'open/:target'] });
   // whitelist descarta campos no declarados; forbidNonWhitelisted los rechaza.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   // Detrás de Nginx: confiar en X-Forwarded-For para que el límite de tasa use la IP real.

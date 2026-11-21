@@ -24,13 +24,13 @@ export class MailerService {
   }
 
   /** Nunca lanza: un fallo de correo no debe romper la operación que lo originó. */
-  async send(to: string, subject: string, text: string): Promise<void> {
+  async send(to: string, subject: string, text: string, html?: string): Promise<void> {
     if (!this.transport) {
       this.log.log(`[correo no configurado] Para: ${to} | Asunto: ${subject}\n${text}`);
       return;
     }
     try {
-      await this.transport.sendMail({ from: this.from, to, subject, text });
+      await this.transport.sendMail({ from: this.from, to, subject, text, html });
     } catch (e) {
       this.log.error(`No se pudo enviar correo a ${to}: ${(e as Error).message}`);
     }

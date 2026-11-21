@@ -55,6 +55,7 @@ class _GolazoAppState extends ConsumerState<GolazoApp> {
     final target = switch (uri.host) {
       'reset-password' => '/reset',
       'verify-email' => '/verify',
+      'login' => '/login',
       _ => null,
     };
     if (target == null) return;

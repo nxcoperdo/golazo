@@ -38,6 +38,7 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="golazo" android:host="reset-password"/>
                 <data android:scheme="golazo" android:host="verify-email"/>
+                <data android:scheme="golazo" android:host="login"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
